@@ -13,7 +13,10 @@ export default function InvestPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const investAmount = Number(amount);
-  const returnAmount = investAmount * 1.02;
+  const dailyRate = 0.02;
+  const maturityDays = 180;
+  const totalReturn = investAmount * dailyRate * maturityDays;
+  const returnAmount = investAmount + totalReturn;
 
   const handleInvest = async () => {
     if (!user) return navigate("/auth");
@@ -21,7 +24,7 @@ export default function InvestPage() {
       user_id: user.id,
       amount: investAmount,
       return_rate: 0.02,
-      maturity_days: 180,
+      maturity_days: maturityDays,
       status: "pending",
     });
     if (error) {
@@ -56,9 +59,10 @@ export default function InvestPage() {
             <CardContent className="space-y-4">
               <div className="rounded-lg bg-muted p-4 space-y-2">
                 <div className="flex justify-between"><span className="text-muted-foreground">Investment:</span><strong>R{investAmount.toLocaleString()}</strong></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Return Rate:</span><strong>2%</strong></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Maturity:</span><strong>180 days</strong></div>
-                <div className="flex justify-between border-t pt-2"><span className="text-muted-foreground">Total Return:</span><strong className="text-primary">R{returnAmount.toLocaleString()}</strong></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Daily Return Rate:</span><strong>2% per day</strong></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Maturity:</span><strong>{maturityDays} days</strong></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Total Profit:</span><strong>R{totalReturn.toLocaleString()}</strong></div>
+                <div className="flex justify-between border-t pt-2"><span className="text-muted-foreground">Total Payout:</span><strong className="text-primary">R{returnAmount.toLocaleString()}</strong></div>
               </div>
 
               <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 space-y-2">

@@ -32,7 +32,7 @@ export default function Index() {
               Grow Your <span className="text-gradient-gold">Wealth</span> With BunnyVest
             </h1>
             <p className="text-lg text-primary-foreground/80">
-              Earn 2% returns over 180 days with our secure investment packages. Start from as little as R200 and watch your money multiply like bunnies!
+              Earn 2% daily returns over 180 days with our secure investment packages. Start from as little as R200 and watch your money multiply like bunnies!
             </p>
             <div className="flex gap-4">
               <Link to={user ? "/dashboard" : "/auth"}>
@@ -55,7 +55,7 @@ export default function Index() {
         <div className="container grid grid-cols-1 gap-6 md:grid-cols-3">
           {[
             { icon: ShieldCheck, title: "Secure & Trusted", desc: "Your investments are protected" },
-            { icon: TrendingUp, title: "2% Returns", desc: "Guaranteed returns in 180 days" },
+            { icon: TrendingUp, title: "2% Daily Returns", desc: "Earn 2% every day for 180 days" },
             { icon: Rabbit, title: "Growing Fast", desc: "Join hundreds of happy investors" },
           ].map(({ icon: Icon, title, desc }) => (
             <div key={title} className="flex items-center gap-4">
