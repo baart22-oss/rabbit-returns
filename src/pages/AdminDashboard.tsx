@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Coins, Ticket, Wallet } from "lucide-react";
+import { Users, Coins, Ticket, Wallet, HandCoins } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 
@@ -16,6 +16,7 @@ export default function AdminDashboard() {
   const [investments, setInvestments] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [raffleTickets, setRaffleTickets] = useState<any[]>([]);
+  const [commissions, setCommissions] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
 
   useEffect(() => {
@@ -23,16 +24,18 @@ export default function AdminDashboard() {
   }, [isAdmin]);
 
   const loadAll = async () => {
-    const [inv, wd, rt, pr] = await Promise.all([
+    const [inv, wd, rt, pr, cm] = await Promise.all([
       supabase.from("investments").select("*").order("created_at", { ascending: false }),
       supabase.from("withdrawals").select("*").order("created_at", { ascending: false }),
       supabase.from("raffle_tickets").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("referral_commissions").select("*").order("created_at", { ascending: false }),
     ]);
     setInvestments(inv.data || []);
     setWithdrawals(wd.data || []);
     setRaffleTickets(rt.data || []);
     setProfiles(pr.data || []);
+    setCommissions(cm.data || []);
   };
 
   const updateInvestmentStatus = async (id: string, status: string) => {
@@ -60,6 +63,12 @@ export default function AdminDashboard() {
     loadAll();
   };
 
+  const updateCommissionStatus = async (id: string, status: string) => {
+    await supabase.from("referral_commissions").update({ status }).eq("id", id);
+    toast.success("Commission updated");
+    loadAll();
+  };
+
   if (loading) return <div className="flex min-h-screen items-center justify-center">Loading...</div>;
   if (!isAdmin) return <Navigate to="/dashboard" />;
 
@@ -84,6 +93,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="investments">Investments ({investments.length})</TabsTrigger>
             <TabsTrigger value="withdrawals">Withdrawals ({withdrawals.length})</TabsTrigger>
             <TabsTrigger value="raffle">Raffle ({raffleTickets.length})</TabsTrigger>
+            <TabsTrigger value="commissions">Commissions ({commissions.length})</TabsTrigger>
             <TabsTrigger value="users">Users ({profiles.length})</TabsTrigger>
           </TabsList>
 
@@ -159,6 +169,39 @@ export default function AdminDashboard() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="commissions">
+            <div className="space-y-3">
+              {commissions.length === 0 && <p className="text-muted-foreground text-sm">No commissions yet.</p>}
+              {commissions.map((c) => {
+                const referrerProfile = profiles.find(p => p.user_id === c.user_id);
+                return (
+                  <Card key={c.id}>
+                    <CardContent className="flex items-center justify-between p-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <HandCoins className="h-4 w-4 text-accent" />
+                          <span className="font-semibold">R{Number(c.amount).toLocaleString()}</span>
+                          <Badge variant={c.status === "paid" ? "default" : "secondary"}>{c.status}</Badge>
+                          <Badge variant="outline">Level {c.level}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          To: {referrerProfile?.full_name || c.user_id.slice(0, 8) + "..."} • Rate: {(Number(c.rate) * 100).toFixed(0)}% • {new Date(c.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Select onValueChange={(v) => updateCommissionStatus(c.id, v)}>
+                        <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </TabsContent>
 
