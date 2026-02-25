@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Coins, Ticket, Wallet, HandCoins } from "lucide-react";
+import { Users, Coins, Ticket, Wallet, HandCoins, FileCheck, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 
@@ -69,6 +69,17 @@ export default function AdminDashboard() {
     loadAll();
   };
 
+  const viewProof = async (filePath: string) => {
+    const { data, error } = await supabase.storage
+      .from("proof-of-payment")
+      .createSignedUrl(filePath, 300);
+    if (error || !data?.signedUrl) {
+      toast.error("Could not load proof of payment");
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+  };
+
   if (loading) return <div className="flex min-h-screen items-center justify-center">Loading...</div>;
   if (!isAdmin) return <Navigate to="/dashboard" />;
 
@@ -108,6 +119,11 @@ export default function AdminDashboard() {
                         <Badge>{inv.status}</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">User: {inv.user_id.slice(0, 8)}... • {new Date(inv.created_at).toLocaleDateString()}</p>
+                      {inv.proof_of_payment && (
+                        <Button variant="link" size="sm" className="h-auto p-0 text-xs gap-1" onClick={() => viewProof(inv.proof_of_payment)}>
+                          <FileCheck className="h-3 w-3" /> View Proof of Payment <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                     <Select onValueChange={(v) => updateInvestmentStatus(inv.id, v)}>
                       <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
@@ -157,6 +173,11 @@ export default function AdminDashboard() {
                       <span className="font-semibold">Ticket #{t.ticket_number}</span>
                       <Badge className="ml-2">{t.status}</Badge>
                       <p className="text-xs text-muted-foreground mt-1">User: {t.user_id.slice(0, 8)}...</p>
+                      {t.proof_of_payment && (
+                        <Button variant="link" size="sm" className="h-auto p-0 text-xs gap-1" onClick={() => viewProof(t.proof_of_payment)}>
+                          <FileCheck className="h-3 w-3" /> View Proof of Payment <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                     <Select onValueChange={(v) => updateTicketStatus(t.id, v)}>
                       <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
