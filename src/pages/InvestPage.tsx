@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Coins, ArrowLeft, Copy } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Coins, ArrowLeft, Copy, Upload, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import rabbitInvest from "@/assets/rabbit-invest.jpg";
 
@@ -12,6 +14,8 @@ export default function InvestPage() {
   const { amount } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const investAmount = Number(amount);
   const dailyRate = 0.02;
   const maturityDays = 180;
@@ -20,18 +24,39 @@ export default function InvestPage() {
 
   const handleInvest = async () => {
     if (!user) return navigate("/auth");
-    const { error } = await supabase.from("investments").insert({
-      user_id: user.id,
-      amount: investAmount,
-      return_rate: 0.02,
-      maturity_days: maturityDays,
-      status: "pending",
-    });
-    if (error) {
-      toast.error("Failed to create investment");
-    } else {
-      toast.success("Investment created! Please make payment and upload proof.");
+    if (!file) {
+      toast.error("Please upload proof of payment first");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("proof-of-payment")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { error } = await supabase.from("investments").insert({
+        user_id: user.id,
+        amount: investAmount,
+        return_rate: 0.02,
+        maturity_days: maturityDays,
+        status: "pending",
+        proof_of_payment: filePath,
+      });
+
+      if (error) throw error;
+
+      toast.success("Investment created with proof of payment!");
       navigate("/dashboard");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create investment");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -88,8 +113,31 @@ export default function InvestPage() {
                 <p className="text-xs text-muted-foreground mt-2">Use your email as payment reference: <strong>{user?.email}</strong></p>
               </div>
 
-              <Button className="w-full bg-gradient-gold text-accent-foreground hover:opacity-90 shadow-gold" size="lg" onClick={handleInvest}>
-                Confirm Investment
+              <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Upload className="h-4 w-4" /> Proof of Payment
+                </h3>
+                <p className="text-sm text-muted-foreground">Upload a screenshot or PDF of your payment confirmation.</p>
+                <Input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="cursor-pointer"
+                />
+                {file && (
+                  <p className="text-sm text-primary flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" /> {file.name}
+                  </p>
+                )}
+              </div>
+
+              <Button
+                className="w-full bg-gradient-gold text-accent-foreground hover:opacity-90 shadow-gold"
+                size="lg"
+                onClick={handleInvest}
+                disabled={!file || uploading}
+              >
+                {uploading ? "Uploading..." : "Confirm Investment"}
               </Button>
             </CardContent>
           </Card>
