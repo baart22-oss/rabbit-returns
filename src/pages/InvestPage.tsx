@@ -102,7 +102,7 @@ export default function InvestPage() {
                     <span>Bank: <strong>ABSA</strong></span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Account: <strong>4787692448351010</strong></span>
+                    <span>Account: <strong>9191004857</strong></span>
                     <Button variant="ghost" size="sm" onClick={() => copyToClipboard("4787692448351010")}><Copy className="h-3 w-3" /></Button>
                   </div>
                   <div className="flex items-center justify-between">
