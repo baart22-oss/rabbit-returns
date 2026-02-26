@@ -129,7 +129,7 @@ export default function Index() {
               <div className="rounded-lg bg-muted p-6 text-left space-y-2">
                 <div className="flex justify-between"><span className="text-muted-foreground">Account Holder:</span><strong>E Roos</strong></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Bank:</span><strong>ABSA</strong></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Account Number:</span><strong>4787692448351010</strong></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Account Number:</span><strong>9191004857</strong></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Branch Code:</span><strong>632005</strong></div>
               </div>
               <p className="text-sm text-muted-foreground">Use your registered email as the payment reference</p>
