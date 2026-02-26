@@ -41,7 +41,10 @@ export default function InvestmentCard({ amount, returnRate, days, index }: Inve
   };
 
   const handleInvest = async () => {
-    if (!user) return navigate("/auth");
+    if (!user) {
+      toast.error("Please log in to confirm your investment");
+      return navigate("/auth");
+    }
     if (!file) {
       toast.error("Please upload proof of payment first");
       return;
@@ -76,7 +79,6 @@ export default function InvestmentCard({ amount, returnRate, days, index }: Inve
   };
 
   const handleInvestClick = () => {
-    if (!user) return navigate("/auth");
     setExpanded((v) => !v);
   };
 
