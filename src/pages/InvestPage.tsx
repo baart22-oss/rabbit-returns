@@ -103,7 +103,7 @@ export default function InvestPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Account: <strong>9191004857</strong></span>
-                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard("4787692448351010")}><Copy className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard("9191004857")}><Copy className="h-3 w-3" /></Button>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Branch Code: <strong>632005</strong></span>
