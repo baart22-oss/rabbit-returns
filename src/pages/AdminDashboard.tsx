@@ -18,25 +18,28 @@ export default function AdminDashboard() {
   const [raffleTickets, setRaffleTickets] = useState<any[]>([]);
   const [commissions, setCommissions] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
-
+const [bankingDetails, setBankingDetails] = useState<any[]>([]);
   useEffect(() => {
     if (isAdmin) loadAll();
   }, [isAdmin]);
 
   const loadAll = async () => {
-    const [inv, wd, rt, pr, cm] = await Promise.all([
+    const [inv, wd, rt, pr, cm, bd] = await Promise.all([
       supabase.from("investments").select("*").order("created_at", { ascending: false }),
       supabase.from("withdrawals").select("*").order("created_at", { ascending: false }),
       supabase.from("raffle_tickets").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("referral_commissions").select("*").order("created_at", { ascending: false }),
+      supabase.from("banking_details").select("*"), // Added this line
     ]);
     setInvestments(inv.data || []);
     setWithdrawals(wd.data || []);
     setRaffleTickets(rt.data || []);
     setProfiles(pr.data || []);
     setCommissions(cm.data || []);
+    setBankingDetails(bd.data || []); // Added this line
   };
+  
 
   const updateInvestmentStatus = async (id: string, status: string) => {
     const updates: any = { status };
