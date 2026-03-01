@@ -143,42 +143,49 @@ const [bankingDetails, setBankingDetails] = useState<any[]>([]);
             </div>
           </TabsContent>
 
-          <TabsContent value="withdrawals">
-            <div className="space-y-3">
-              {withdrawals.length === 0 && <p className="text-muted-foreground text-sm">No withdrawal requests yet.</p>}
-              {withdrawals.map((wd) => {
+                       {withdrawals.map((wd) => {
                 const isBonus = wd.investment_id === null;
                 const userProfile = profiles.find(p => p.user_id === wd.user_id);
+                const userBank = bankingDetails.find(b => b.user_id === wd.user_id);
+
                 return (
                   <Card key={wd.id}>
-                    <CardContent className="flex items-center justify-between p-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">R{Number(wd.amount).toLocaleString()}</span>
-                          <Badge>{wd.status}</Badge>
-                          {isBonus ? (
-                            <Badge variant="secondary">Referral Bonus</Badge>
-                          ) : (
-                            <Badge variant="outline">Investment Payout</Badge>
-                          )}
+                    <CardContent className="p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-bold">R{Number(wd.amount).toLocaleString()}</span>
+                            <Badge variant={wd.status === "processed" ? "default" : "outline"}>{wd.status}</Badge>
+                            {isBonus ? <Badge variant="secondary">Bonus</Badge> : <Badge variant="outline">Investment</Badge>}
+                          </div>
+                          <p className="text-sm font-medium">{userProfile?.full_name || "Unnamed User"}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(wd.created_at).toLocaleString()}</p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          User: {userProfile?.full_name || wd.user_id.slice(0, 8) + "..."} • {new Date(wd.created_at).toLocaleDateString()}
-                        </p>
+                        <Select onValueChange={(v) => updateWithdrawalStatus(wd.id, v, wd.investment_id)}>
+                          <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="processed">Processed</SelectItem>
+                            <SelectItem value="rejected">Rejected</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <Select onValueChange={(v) => updateWithdrawalStatus(wd.id, v)}>
-                        <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="processed">Processed</SelectItem>
-                          <SelectItem value="rejected">Rejected</SelectItem>
-                        </SelectContent>
-                      </Select>
+
+                      {/* Display Banking Details */}
+                      {userBank ? (
+                        <div className="rounded bg-muted p-3 text-xs grid grid-cols-2 gap-2">
+                          <div><span className="text-muted-foreground">Bank:</span> {userBank.bank_name}</div>
+                          <div><span className="text-muted-foreground">Account:</span> {userBank.account_number}</div>
+                          <div><span className="text-muted-foreground">Holder:</span> {userBank.account_holder}</div>
+                          <div><span className="text-muted-foreground">Branch:</span> {userBank.branch_code}</div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-destructive">User has not added banking details.</p>
+                      )}
                     </CardContent>
                   </Card>
                 );
               })}
-            </div>
           </TabsContent>
 
           <TabsContent value="raffle">
