@@ -1,169 +1,59 @@
-import { Link } from "react-router-dom";
-import { useAuth } from "@/lib/auth";
-import Navbar from "@/components/Navbar";
-import InvestmentCard from "@/components/InvestmentCard";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Rabbit, Ticket, ShieldCheck, TrendingUp } from "lucide-react";
-import heroRabbit from "@/assets/hero-rabbit.jpg";
-import rabbitRaffle from "@/assets/rabbit-raffle.jpg";
+import React from 'react';
+import './Index.css';
 
-const investments = [200, 500, 1000, 2000, 5000, 10000];
-
-export default function Index() {
-  const { user } = useAuth();
-
+const Index = () => {
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <img src={heroRabbit} alt="Lucky investment rabbit on gold coins" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-foreground/80 via-foreground/60 to-transparent" />
+    <div className="landing-page">
+      {/* Hero Section */}
+      <section className="hero" style={{ backgroundImage: 'url(/path-to-your-background-image.jpg)' }}>
+        <div className="hero-content">
+          <h1>Welcome to Rabbit Returns</h1>
+          <p>Your gateway to smart investments.</p>
         </div>
-        <div className="container relative flex min-h-[70vh] items-center py-20">
-          <div className="max-w-xl space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-card/20 px-4 py-1.5 text-sm text-primary-foreground backdrop-blur-sm">
-              <Rabbit className="h-4 w-4" /> Trusted Rabbit Investments
-            </div>
-            <h1 className="text-5xl font-bold leading-tight text-primary-foreground md:text-6xl">
-              Grow Your <span className="text-gradient-gold">Wealth</span> With BunnyVest
-            </h1>
-            <p className="text-lg text-primary-foreground/80">
-              Earn 2% daily returns over 180 days with our secure investment packages. Start from as little as R200 and watch your money multiply like bunnies!
-            </p>
-            <div className="flex gap-4">
-              <Link to={user ? "/dashboard" : "/auth"}>
-                <Button size="lg" className="bg-gradient-gold text-accent-foreground hover:opacity-90 shadow-gold">
-                  Start Investing
-                </Button>
-              </Link>
-              <a href="#packages">
-                <Button size="lg" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
-                  View Packages
-                </Button>
-              </a>
-            </div>
+      </section>
+
+      {/* Investment Packages Grid */}
+      <section className="investment-packages">
+        <h2>Investment Packages</h2>
+        <div className="packages-grid">
+          <div className="package">
+            <h3>Basic Package</h3>
+            <p>Details about the basic package.</p>
+          </div>
+          <div className="package">
+            <h3>Standard Package</h3>
+            <p>Details about the standard package.</p>
+          </div>
+          <div className="package">
+            <h3>Premium Package</h3>
+            <p>Details about the premium package.</p>
           </div>
         </div>
       </section>
 
-      {/* Trust indicators */}
-      <section className="border-b bg-card py-8">
-        <div className="container grid grid-cols-1 gap-6 md:grid-cols-3">
-          {[
-            { icon: ShieldCheck, title: "Secure & Trusted", desc: "Your investments are protected" },
-            { icon: TrendingUp, title: "2% Daily Returns", desc: "Earn 2% every day for 180 days" },
-            { icon: Rabbit, title: "Growing Fast", desc: "Join hundreds of happy investors" },
-          ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                <Icon className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">{title}</h3>
-                <p className="text-sm text-muted-foreground">{desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Raffle Section */}
+      <section className="raffle">
+        <h2>Join Our Raffle</h2>
+        <p>Participate for a chance to win exciting prizes!</p>
       </section>
 
-      {/* Investment packages */}
-      <section id="packages" className="py-20">
-        <div className="container">
-          <div className="mb-12 text-center">
-            <h2 className="text-3xl font-bold text-foreground md:text-4xl">Investment Packages</h2>
-            <p className="mt-3 text-muted-foreground">Choose your plan and start earning today</p>
-          </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {investments.map((amount, i) => (
-              <InvestmentCard key={amount} amount={amount} returnRate={0.02} days={180} index={i} />
-            ))}
-          </div>
-        </div>
+      {/* Payment Details Card */}
+      <section className="payment-details">
+        <h2>Payment Details</h2>
+        <p>Information about payment options.</p>
       </section>
 
-      {/* Raffle */}
-      <section className="bg-gradient-forest py-20">
-        <div className="container grid items-center gap-10 md:grid-cols-2">
-          <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-card/10 px-4 py-1.5 text-sm text-primary-foreground backdrop-blur-sm">
-              <Ticket className="h-4 w-4" /> Lucky Rabbit Raffle
-            </div>
-            <h2 className="text-4xl font-bold text-primary-foreground">Win Big with Our Raffle!</h2>
-            <p className="text-lg text-primary-foreground/80">
-              Get your raffle ticket for just R50! Only 500 tickets available — the fewer tickets sold, the better your chances of winning the grand prize!
-            </p>
-            <div className="flex items-center gap-6">
-              <div>
-                <div className="text-3xl font-bold text-gradient-gold">R50</div>
-                <div className="text-sm text-primary-foreground/60">Per Ticket</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-gradient-gold">500</div>
-                <div className="text-sm text-primary-foreground/60">Total Tickets</div>
-              </div>
-            </div>
-            <Link to={user ? "/raffle" : "/auth"}>
-              <Button size="lg" className="bg-gradient-gold text-accent-foreground hover:opacity-90 shadow-gold">
-                Buy Raffle Ticket
-              </Button>
-            </Link>
-          </div>
-          <div className="flex justify-center">
-            <img src={rabbitRaffle} alt="Lucky raffle rabbit" className="w-80 rounded-2xl shadow-2xl" />
-          </div>
-        </div>
+      {/* WhatsApp Support Button */}
+      <section className="whatsapp-support">
+        <a href="https://wa.me/your-whatsapp-number" className="whatsapp-button">Support on WhatsApp</a>
       </section>
-
-      {/* Payment info */}
-      <section className="py-16">
-        <div className="container max-w-2xl">
-          <Card className="border-accent/20">
-            <CardContent className="p-8 text-center space-y-4">
-              <h3 className="text-2xl font-bold text-foreground">Payment Details</h3>
-              <p className="text-muted-foreground">Make your investment payment via EFT to the following account:</p>
-              <div className="rounded-lg bg-muted p-6 text-left space-y-2">
-                <div className="flex justify-between"><span className="text-muted-foreground">Account Holder:</span><strong>E Roos</strong></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Bank:</span><strong>ABSA</strong></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Account Number:</span><strong>9191004857</strong></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Branch Code:</span><strong>632005</strong></div>
-              </div>
-              <p className="text-sm text-muted-foreground">Use your registered email as the payment reference</p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* Floating WhatsApp Support Button */}
-      <a
-        href="https://chat.whatsapp.com/CBB0kLzFXeN64xdNYfHhZE?mode=gi_t"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-[hsl(142,70%,40%)] px-4 py-3 text-white shadow-lg hover:bg-[hsl(142,70%,33%)] transition-all hover:scale-105"
-        aria-label="Chat on WhatsApp"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
-          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-        </svg>
-        <span className="text-sm font-semibold">Support</span>
-      </a>
 
       {/* Footer */}
-      <footer className="border-t bg-card py-8">
-        <div className="container flex items-center justify-between text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Rabbit className="h-5 w-5 text-primary" />
-            <span>© 2026 BunnyVest. All rights reserved.</span>
-          </div>
-          <div className="flex gap-4">
-            <Link to="/auth" className="hover:text-foreground">Login</Link>
-          </div>
-        </div>
+      <footer>
+        <p>&copy; {new Date().getFullYear()} Rabbit Returns. All rights reserved.</p>
       </footer>
     </div>
   );
-}
+};
+
+export default Index;
