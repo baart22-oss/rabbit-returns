@@ -142,25 +142,39 @@ export default function AdminDashboard() {
 
           <TabsContent value="withdrawals">
             <div className="space-y-3">
-              {withdrawals.map((wd) => (
-                <Card key={wd.id}>
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div>
-                      <span className="font-semibold">R{Number(wd.amount).toLocaleString()}</span>
-                      <Badge className="ml-2">{wd.status}</Badge>
-                      <p className="text-xs text-muted-foreground mt-1">User: {wd.user_id.slice(0, 8)}... • {new Date(wd.created_at).toLocaleDateString()}</p>
-                    </div>
-                    <Select onValueChange={(v) => updateWithdrawalStatus(wd.id, v)}>
-                      <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="processed">Processed</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </CardContent>
-                </Card>
-              ))}
+              {withdrawals.length === 0 && <p className="text-muted-foreground text-sm">No withdrawal requests yet.</p>}
+              {withdrawals.map((wd) => {
+                const isBonus = wd.investment_id === null;
+                const userProfile = profiles.find(p => p.user_id === wd.user_id);
+                return (
+                  <Card key={wd.id}>
+                    <CardContent className="flex items-center justify-between p-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">R{Number(wd.amount).toLocaleString()}</span>
+                          <Badge>{wd.status}</Badge>
+                          {isBonus ? (
+                            <Badge variant="secondary">Referral Bonus</Badge>
+                          ) : (
+                            <Badge variant="outline">Investment Payout</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          User: {userProfile?.full_name || wd.user_id.slice(0, 8) + "..."} • {new Date(wd.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Select onValueChange={(v) => updateWithdrawalStatus(wd.id, v)}>
+                        <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="processed">Processed</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </TabsContent>
 
