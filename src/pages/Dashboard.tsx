@@ -78,11 +78,14 @@ export default function Dashboard() {
 
   const requestWithdrawal = async (investment: any) => {
     if (!banking) { toast.error("Please add your banking details first"); return; }
+    // Check if withdrawal already requested for this investment
+    const existing = withdrawals.find(w => w.investment_id === investment.id && w.status !== "rejected");
+    if (existing) { toast.error("Withdrawal already requested for this investment"); return; }
     const totalReturn = Number(investment.amount) * Number(investment.return_rate) * Number(investment.maturity_days);
     const amount = Number(investment.amount) + totalReturn;
     const { error } = await supabase.from("withdrawals").insert({ user_id: user!.id, investment_id: investment.id, amount });
     if (error) { toast.error("Failed to request withdrawal"); }
-    else { toast.success("Withdrawal requested!"); loadData(); }
+    else { toast.success("Withdrawal requested! Admin will process it shortly."); loadData(); }
   };
 
   const copyReferralCode = () => {
@@ -270,23 +273,67 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="withdrawals">
-            {withdrawals.length === 0 ? (
-              <Card><CardContent className="p-8 text-center text-muted-foreground">No withdrawal requests yet.</CardContent></Card>
-            ) : (
-              <div className="space-y-3">
-                {withdrawals.map((wd) => (
-                  <Card key={wd.id}>
-                    <CardContent className="flex items-center justify-between p-4">
-                      <div>
-                        <span className="font-semibold">R{Number(wd.amount).toLocaleString()}</span>
-                        <Badge variant="outline" className="ml-2">{wd.status}</Badge>
-                        <p className="text-xs text-muted-foreground mt-1">Requested: {new Date(wd.created_at).toLocaleDateString()}</p>
+            <div className="space-y-4">
+              {/* Matured investments ready to withdraw */}
+              {investments.filter(i => i.status === "matured").map((inv) => {
+                const totalReturn = Number(inv.amount) * Number(inv.return_rate) * Number(inv.maturity_days);
+                const payout = Number(inv.amount) + totalReturn;
+                const alreadyRequested = withdrawals.find(w => w.investment_id === inv.id && w.status !== "rejected");
+                return (
+                  <Card key={inv.id} className="border-accent/40">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-accent">Investment Matured 🎉</p>
+                          <p className="text-sm text-muted-foreground">Principal: R{Number(inv.amount).toLocaleString()} + Returns: R{totalReturn.toLocaleString()}</p>
+                          <p className="text-lg font-bold text-primary mt-1">Total Payout: R{payout.toLocaleString()}</p>
+                        </div>
+                        {alreadyRequested ? (
+                          <Badge variant="outline">{alreadyRequested.status}</Badge>
+                        ) : (
+                          <Button size="sm" onClick={() => requestWithdrawal(inv)} disabled={!banking}>
+                            Request Withdrawal
+                          </Button>
+                        )}
                       </div>
+                      {!banking && <p className="text-xs text-destructive mt-2">Add banking details first</p>}
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            )}
+                );
+              })}
+
+              {/* All withdrawal requests */}
+              <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Withdrawal Requests</CardTitle></CardHeader>
+                <CardContent>
+                  {withdrawals.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-4">No withdrawal requests yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {withdrawals.map((wd) => {
+                        const isBonus = wd.investment_id === null;
+                        const statusVariant = wd.status === "processed" ? "default" : wd.status === "rejected" ? "destructive" : "outline";
+                        return (
+                          <div key={wd.id} className="flex items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold">R{Number(wd.amount).toLocaleString()}</span>
+                                <Badge variant={statusVariant as any}>{wd.status}</Badge>
+                                {isBonus && <Badge variant="secondary" className="text-xs">Referral Bonus</Badge>}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Requested: {new Date(wd.created_at).toLocaleDateString()}
+                                {wd.processed_at && ` • Processed: ${new Date(wd.processed_at).toLocaleDateString()}`}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="referrals">
