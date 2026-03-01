@@ -123,7 +123,23 @@ export default function Dashboard() {
     }
   };
 
+  const getDaysElapsed = (inv: any) => {
+    if (!inv.started_at) return 0;
+    const start = new Date(inv.started_at);
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.min(diff, Number(inv.maturity_days));
+  };
+
+  const getAccumulatedEarnings = (inv: any) => {
+    const days = getDaysElapsed(inv);
+    return Number(inv.amount) * Number(inv.return_rate) * days;
+  };
+
   const totalInvested = investments.reduce((sum, i) => sum + Number(i.amount), 0);
+  const totalAccumulatedEarnings = investments
+    .filter(i => i.status === 'active' || i.status === 'matured')
+    .reduce((sum, i) => sum + getAccumulatedEarnings(i), 0);
   const totalCommissions = commissions.reduce((sum, c) => sum + Number(c.amount), 0);
   const paidCommissions = commissions.filter(c => c.status === "paid").reduce((sum, c) => sum + Number(c.amount), 0);
   const bonusWithdrawals = withdrawals.filter(w => w.investment_id === null && w.status !== "rejected").reduce((sum, w) => sum + Number(w.amount), 0);
@@ -150,8 +166,8 @@ export default function Dashboard() {
             <CardContent className="flex items-center gap-4 p-6">
               <TrendingUp className="h-10 w-10 text-accent" />
               <div>
-                <p className="text-sm text-muted-foreground">Daily @ 2%</p>
-                <p className="text-2xl font-bold">R{(totalInvested * 0.02).toLocaleString()}</p>
+                <p className="text-sm text-muted-foreground">Accumulated Earnings</p>
+                <p className="text-2xl font-bold">R{totalAccumulatedEarnings.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
               </div>
             </CardContent>
           </Card>
@@ -201,24 +217,50 @@ export default function Dashboard() {
                 {investments.map((inv) => {
                   const totalReturn = Number(inv.amount) * Number(inv.return_rate) * Number(inv.maturity_days);
                   const payout = Number(inv.amount) + totalReturn;
+                  const daysElapsed = getDaysElapsed(inv);
+                  const earned = getAccumulatedEarnings(inv);
+                  const progressPct = inv.maturity_days > 0 ? Math.round((daysElapsed / Number(inv.maturity_days)) * 100) : 0;
                   return (
                     <Card key={inv.id}>
-                      <CardContent className="flex items-center justify-between p-4">
-                        <div className="space-y-1">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold">R{Number(inv.amount).toLocaleString()}</span>
                             <Badge variant={statusColor(inv.status) as any}>{inv.status}</Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            2% daily × {inv.maturity_days} days = R{payout.toLocaleString()} total payout
-                          </p>
-                          <p className="text-xs text-muted-foreground">Created: {new Date(inv.created_at).toLocaleDateString()}</p>
+                          {inv.status === "matured" && (
+                            <Button size="sm" variant="outline" onClick={() => requestWithdrawal(inv)}>
+                              Request Withdrawal
+                            </Button>
+                          )}
                         </div>
-                        {inv.status === "matured" && (
-                          <Button size="sm" variant="outline" onClick={() => requestWithdrawal(inv)}>
-                            Request Withdrawal
-                          </Button>
-                        )}
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div className="rounded bg-muted p-2 text-center">
+                            <p className="text-xs text-muted-foreground">Invested</p>
+                            <p className="font-bold">R{Number(inv.amount).toLocaleString()}</p>
+                          </div>
+                          <div className="rounded bg-accent/10 p-2 text-center">
+                            <p className="text-xs text-muted-foreground">Earned so far</p>
+                            <p className="font-bold text-accent">R{earned.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                          </div>
+                          <div className="rounded bg-primary/10 p-2 text-center">
+                            <p className="text-xs text-muted-foreground">Total Payout</p>
+                            <p className="font-bold text-primary">R{payout.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Day {daysElapsed} of {inv.maturity_days}</span>
+                            <span>{progressPct}% complete</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all"
+                              style={{ width: `${progressPct}%` }}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Started: {inv.started_at ? new Date(inv.started_at).toLocaleDateString() : "Pending activation"}</p>
                       </CardContent>
                     </Card>
                   );
