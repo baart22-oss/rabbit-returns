@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
+import WithdrawalForm from "@/components/WithdrawalForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,7 @@ export default function Dashboard() {
   const [commissions, setCommissions] = useState<any[]>([]);
   const [referredUsers, setReferredUsers] = useState<any[]>([]);
   const [requesting, setRequesting] = useState(false);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -31,13 +33,14 @@ export default function Dashboard() {
   }, [user]);
 
   const loadData = async () => {
-    const [invRes, wdRes, rtRes, bkRes, profRes, commRes] = await Promise.all([
+    const [invRes, wdRes, rtRes, bkRes, profRes, commRes, wrRes] = await Promise.all([
       supabase.from("investments").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
       supabase.from("withdrawals").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
       supabase.from("raffle_tickets").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
       supabase.from("banking_details").select("*").eq("user_id", user!.id).maybeSingle(),
       supabase.from("profiles").select("*").eq("user_id", user!.id).maybeSingle(),
       supabase.from("referral_commissions").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
+      supabase.from("withdrawal_requests").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
     ]);
     setInvestments(invRes.data || []);
     setWithdrawals(wdRes.data || []);
@@ -45,6 +48,7 @@ export default function Dashboard() {
     if (bkRes.data) { setBanking(bkRes.data); setBankForm(bkRes.data); }
     setProfile(profRes.data);
     setCommissions(commRes.data || []);
+    setWithdrawalRequests(wrRes.data || []);
 
     if (profRes.data?.referral_code) {
       const { data: refs } = await supabase.from("profiles").select("*").eq("referred_by", profRes.data.referral_code);
@@ -128,6 +132,16 @@ export default function Dashboard() {
   const totalAccumulated = investments.reduce((sum, i) => sum + getAccumulatedEarnings(i), 0);
   const totalWithdrawn = withdrawals.filter(w => w.status === "processed").reduce((sum, w) => sum + Number(w.amount), 0);
 
+  const getAvailableBalance = () => {
+    const earnedFromInvestments = investments.reduce((sum, i) => sum + getAvailableToWithdraw(i), 0);
+    const paidCommissions = commissions.filter(c => c.status === "paid").reduce((sum, c) => sum + Number(c.amount), 0);
+    const withdrawnBonus = withdrawals.filter(w => w.investment_id === null && w.status !== "rejected").reduce((sum, w) => sum + Number(w.amount), 0);
+    const bonusAvailable = paidCommissions - withdrawnBonus;
+    return earnedFromInvestments + bonusAvailable;
+  };
+
+  const availableBalance = getAvailableBalance();
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <Navbar />
@@ -152,7 +166,8 @@ export default function Dashboard() {
         <Tabs defaultValue="investments">
           <TabsList className="mb-6">
             <TabsTrigger value="investments">Investments</TabsTrigger>
-            <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
+            <TabsTrigger value="withdraw">Withdraw Funds</TabsTrigger>
+            <TabsTrigger value="withdrawals">Withdrawal History</TabsTrigger>
             <TabsTrigger value="banking">Banking</TabsTrigger>
           </TabsList>
 
@@ -186,11 +201,49 @@ export default function Dashboard() {
             })}
           </TabsContent>
 
+          <TabsContent value="withdraw" className="space-y-6">
+            <WithdrawalForm
+              availableBalance={availableBalance}
+              onSuccess={loadData}
+            />
+
+            <Card>
+              <CardHeader><CardTitle>Withdrawal Requests</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                {withdrawalRequests.length === 0 ? (
+                  <p className="text-center py-4 text-muted-foreground">No withdrawal requests yet.</p>
+                ) : (
+                  withdrawalRequests.map(wr => (
+                    <div key={wr.id} className="flex items-center justify-between border-b pb-3">
+                      <div>
+                        <p className="font-bold">R{Number(wr.amount).toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(wr.created_at).toLocaleDateString()} • {wr.method}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          wr.status === 'processed'
+                            ? 'default'
+                            : wr.status === 'rejected'
+                              ? 'destructive'
+                              : 'outline'
+                        }
+                      >
+                        {wr.status}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="withdrawals">
             <Card>
-              <CardHeader><CardTitle>Withdrawal History</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Legacy Withdrawal History</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                {withdrawals.length === 0 ? <p className="text-center py-4 text-muted-foreground">No withdrawals yet.</p> : 
+                {withdrawals.length === 0 ? <p className="text-center py-4 text-muted-foreground">No withdrawals yet.</p> :
                   withdrawals.map(wd => (
                     <div key={wd.id} className="flex items-center justify-between border-b pb-3">
                       <div>
