@@ -54,8 +54,20 @@ const [bankingDetails, setBankingDetails] = useState<any[]>([]);
 
   const updateWithdrawalStatus = async (id: string, status: string) => {
     const updates: any = { status };
-    if (status === "processed") updates.processed_at = new Date().toISOString();
-    await supabase.from("withdrawals").update(updates).eq("id", id);
+    if (status === "processed") {
+      updates.processed_at = new Date().toISOString();
+    }
+    
+    const { error } = await supabase.from("withdrawals").update(updates).eq("id", id);
+    
+    if (error) {
+      toast.error("Failed to update status");
+      return;
+    }
+
+    // We removed the code that updates investment status to "withdrawn".
+    // This allows the investment to remain "active" or "matured" so it keeps earning.
+
     toast.success("Withdrawal updated");
     loadAll();
   };
@@ -161,9 +173,12 @@ const [bankingDetails, setBankingDetails] = useState<any[]>([]);
                           <p className="text-sm font-medium">{userProfile?.full_name || "Unnamed User"}</p>
                           <p className="text-xs text-muted-foreground">{new Date(wd.created_at).toLocaleString()}</p>
                         </div>
-                        <Select onValueChange={(v) => updateWithdrawalStatus(wd.id, v, wd.investment_id)}>
-                          <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
-                          <SelectContent>
+                        <Select onValueChange={(v) => updateWithdrawalStatus(wd.id, v)}>
+  <SelectTrigger className="w-36">
+     <SelectValue placeholder="Update" />
+  </SelectTrigger>
+  {/* ... rest of Select content ... */}
+</Select>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="processed">Processed</SelectItem>
                             <SelectItem value="rejected">Rejected</SelectItem>
