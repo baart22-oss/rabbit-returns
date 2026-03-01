@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import WithdrawalForm from "@/components/WithdrawalForm";
+import WithdrawalHistory from "@/components/WithdrawalHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Coins, Wallet, Ticket, Copy, Users, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { getUserWithdrawalRequests, type WithdrawalRequest } from "@/lib/withdrawalStorage";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -25,6 +27,7 @@ export default function Dashboard() {
   const [referredUsers, setReferredUsers] = useState<any[]>([]);
   const [requesting, setRequesting] = useState(false);
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
+  const [localWithdrawals, setLocalWithdrawals] = useState<WithdrawalRequest[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -46,6 +49,7 @@ export default function Dashboard() {
     setProfile(profRes.data);
     setCommissions(commRes.data || []);
     setWithdrawalRequests(wrRes.data || []);
+    setLocalWithdrawals(getUserWithdrawalRequests(user!.id));
 
     if (profRes.data?.referral_code) {
       const { data: refs } = await supabase.from("profiles").select("*").eq("referred_by", profRes.data.referral_code);
@@ -212,57 +216,10 @@ export default function Dashboard() {
               availableBalance={availableBalance}
               onSuccess={loadData}
             />
-
-            <Card>
-              <CardHeader><CardTitle>Withdrawal Requests</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                {withdrawalRequests.length === 0 ? (
-                  <p className="text-center py-4 text-muted-foreground">No withdrawal requests yet.</p>
-                ) : (
-                  withdrawalRequests.map(wr => (
-                    <div key={wr.id} className="flex items-center justify-between border-b pb-3">
-                      <div>
-                        <p className="font-bold">R{Number(wr.amount).toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(wr.created_at).toLocaleDateString()} • {wr.method}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={
-                          wr.status === 'processed'
-                            ? 'default'
-                            : wr.status === 'rejected'
-                              ? 'destructive'
-                              : 'outline'
-                        }
-                      >
-                        {wr.status}
-                      </Badge>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="withdrawals">
-            <Card>
-              <CardHeader><CardTitle>Withdrawal History</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                {withdrawalRequests.length === 0 ? <p className="text-center py-4 text-muted-foreground">No withdrawals yet.</p> :
-                  withdrawalRequests.map(wd => (
-                    <div key={wd.id} className="flex items-center justify-between border-b pb-3">
-                      <div>
-                        <p className="font-bold">R{Number(wd.amount).toLocaleString()}</p>
-                        {/* wd.method fallback supports legacy records without a method field */}
-                        <p className="text-xs text-muted-foreground">{new Date(wd.created_at).toLocaleDateString()} • {wd.method || (wd.investment_id ? 'Earnings' : 'Referral Bonus')}</p>
-                      </div>
-                      <Badge variant={wd.status === 'processed' ? 'default' : wd.status === 'rejected' ? 'destructive' : 'outline'}>{wd.status}</Badge>
-                    </div>
-                  ))
-                }
-              </CardContent>
-            </Card>
+            <WithdrawalHistory requests={localWithdrawals} />
           </TabsContent>
 
           <TabsContent value="banking">

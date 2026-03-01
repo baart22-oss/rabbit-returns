@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/integrations/supabase/client";
+import { saveWithdrawalRequest } from "@/lib/withdrawalStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,26 +78,25 @@ export default function WithdrawalForm({
 
     setSubmitting(true);
 
-    const details =
-      method === "eft"
-        ? bankDetails
-        : { wallet_or_address: otherDetails };
+    try {
+      saveWithdrawalRequest({
+        userId: user.id,
+        amount: amountNum,
+        method: method === "eft" ? "EFT" : "Crypto",
+        bankDetails:
+          method === "eft"
+            ? {
+                bankName: bankDetails.bank_name,
+                accountHolder: bankDetails.account_holder,
+                accountNumber: bankDetails.account_number,
+                branchCode: bankDetails.branch_code,
+              }
+            : undefined,
+        walletAddress: method !== "eft" ? otherDetails : undefined,
+        reason: reason || undefined,
+      });
 
-    const { error } = await supabase.from("withdrawal_requests").insert({
-      user_id: user.id,
-      amount: amountNum,
-      method: method === "eft" ? "EFT / Bank Transfer" : "Other",
-      details,
-      reason: reason || null,
-    });
-
-    if (error) {
-      toast.error("Failed to submit withdrawal request");
-      console.error(error);
-    } else {
-      toast.success(
-        "Withdrawal request submitted! We'll process it soon."
-      );
+      toast.success("Withdrawal request submitted! We'll process it soon.");
       setAmount("");
       setMethod("eft");
       setReason("");
@@ -109,6 +108,9 @@ export default function WithdrawalForm({
       });
       setOtherDetails("");
       onSuccess();
+    } catch (err) {
+      toast.error("Failed to submit withdrawal request");
+      console.error("localStorage withdrawal error:", err);
     }
 
     setSubmitting(false);
