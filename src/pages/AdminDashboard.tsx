@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
+import AdminWithdrawalPanel from "@/components/AdminWithdrawalPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, Coins, Ticket, Wallet, HandCoins, FileCheck, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
+import { getAllWithdrawalRequests, type WithdrawalRequest } from "@/lib/withdrawalStorage";
 
 export default function AdminDashboard() {
   const { isAdmin, loading } = useAuth();
@@ -20,6 +22,7 @@ export default function AdminDashboard() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [bankingDetails, setBankingDetails] = useState<any[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
+  const [localWithdrawalRequests, setLocalWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
 
   useEffect(() => {
     if (isAdmin) loadAll();
@@ -42,6 +45,7 @@ export default function AdminDashboard() {
     setCommissions(cm.data || []);
     setBankingDetails(bd.data || []);
     setWithdrawalRequests(wr.data || []);
+    setLocalWithdrawalRequests(getAllWithdrawalRequests());
   };
 
   const updateWithdrawalStatus = async (id: string, status: string) => {
@@ -80,6 +84,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="investments">Investments</TabsTrigger>
             <TabsTrigger value="withdrawals">Withdrawals ({withdrawals.filter(w=>w.status==='pending').length} Pending)</TabsTrigger>
             <TabsTrigger value="withdrawal-requests">Withdrawal Requests ({withdrawalRequests.filter(w=>w.status==='pending').length} Pending)</TabsTrigger>
+            <TabsTrigger value="local-withdrawals">Local Withdrawals ({localWithdrawalRequests.filter(w=>w.status==='pending').length} Pending)</TabsTrigger>
           </TabsList>
 
           <TabsContent value="withdrawals" className="space-y-4">
@@ -171,6 +176,13 @@ export default function AdminDashboard() {
           </TabsContent>
 
           {/* ... Rest of your existing TabsContent for investments, raffle, etc ... */}
+
+          <TabsContent value="local-withdrawals">
+            <AdminWithdrawalPanel
+              requests={localWithdrawalRequests}
+              onRefresh={() => setLocalWithdrawalRequests(getAllWithdrawalRequests())}
+            />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
