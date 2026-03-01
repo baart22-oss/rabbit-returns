@@ -19,19 +19,21 @@ export default function AdminDashboard() {
   const [commissions, setCommissions] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [bankingDetails, setBankingDetails] = useState<any[]>([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
 
   useEffect(() => {
     if (isAdmin) loadAll();
   }, [isAdmin]);
 
   const loadAll = async () => {
-    const [inv, wd, rt, pr, cm, bd] = await Promise.all([
+    const [inv, wd, rt, pr, cm, bd, wr] = await Promise.all([
       supabase.from("investments").select("*").order("created_at", { ascending: false }),
       supabase.from("withdrawals").select("*").order("created_at", { ascending: false }),
       supabase.from("raffle_tickets").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("referral_commissions").select("*").order("created_at", { ascending: false }),
       supabase.from("banking_details").select("*"),
+      supabase.from("withdrawal_requests").select("*").order("created_at", { ascending: false }),
     ]);
     setInvestments(inv.data || []);
     setWithdrawals(wd.data || []);
@@ -39,6 +41,7 @@ export default function AdminDashboard() {
     setProfiles(pr.data || []);
     setCommissions(cm.data || []);
     setBankingDetails(bd.data || []);
+    setWithdrawalRequests(wr.data || []);
   };
 
   const updateWithdrawalStatus = async (id: string, status: string) => {
@@ -52,7 +55,16 @@ export default function AdminDashboard() {
     loadAll();
   };
 
-  // ... (Keep other update functions like updateInvestmentStatus the same)
+  const updateWithdrawalRequestStatus = async (id: string, status: string) => {
+    const updates: any = { status };
+    if (status === "processed") updates.processed_at = new Date().toISOString();
+
+    const { error } = await supabase.from("withdrawal_requests").update(updates).eq("id", id);
+    if (error) { toast.error("Update failed"); return; }
+
+    toast.success(`Withdrawal request marked as ${status}.`);
+    loadAll();
+  };
 
   if (loading) return <div>Loading...</div>;
   if (!isAdmin) return <Navigate to="/dashboard" />;
@@ -63,10 +75,11 @@ export default function AdminDashboard() {
       <div className="container py-8">
         <h1 className="mb-6 text-3xl font-bold">Admin Dashboard</h1>
 
-        <Tabs defaultValue="withdrawals">
+        <Tabs defaultValue="withdrawal-requests">
           <TabsList className="mb-4">
             <TabsTrigger value="investments">Investments</TabsTrigger>
             <TabsTrigger value="withdrawals">Withdrawals ({withdrawals.filter(w=>w.status==='pending').length} Pending)</TabsTrigger>
+            <TabsTrigger value="withdrawal-requests">Withdrawal Requests ({withdrawalRequests.filter(w=>w.status==='pending').length} Pending)</TabsTrigger>
           </TabsList>
 
           <TabsContent value="withdrawals" className="space-y-4">
@@ -108,6 +121,55 @@ export default function AdminDashboard() {
               );
             })}
           </TabsContent>
+
+          <TabsContent value="withdrawal-requests" className="space-y-4">
+            {withdrawalRequests.length === 0 && <p>No withdrawal requests.</p>}
+            {withdrawalRequests.map((wr) => {
+              const userProfile = profiles.find(p => p.user_id === wr.user_id);
+              const details = wr.details || {};
+              return (
+                <Card key={wr.id}>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <p className="text-lg font-bold">R{Number(wr.amount).toLocaleString()}</p>
+                        <Badge variant={wr.status === 'processed' ? 'default' : wr.status === 'rejected' ? 'destructive' : 'outline'}>{wr.status}</Badge>
+                        <p className="text-sm font-medium">{userProfile?.full_name}</p>
+                        <p className="text-xs text-muted-foreground">{wr.method} • {new Date(wr.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <Select onValueChange={(v) => updateWithdrawalRequestStatus(wr.id, v)}>
+                        <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="processed">Processed</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {wr.method === "EFT / Bank Transfer" ? (
+                      <div className="rounded bg-muted p-3 text-xs grid grid-cols-2 gap-2">
+                        <div><span className="text-muted-foreground font-semibold">Bank:</span> {details.bank_name}</div>
+                        <div><span className="text-muted-foreground font-semibold">Account:</span> {details.account_number}</div>
+                        <div><span className="text-muted-foreground font-semibold">Holder:</span> {details.account_holder}</div>
+                        <div><span className="text-muted-foreground font-semibold">Branch:</span> {details.branch_code}</div>
+                      </div>
+                    ) : (
+                      <div className="rounded bg-muted p-3 text-xs">
+                        <span className="text-muted-foreground font-semibold">Wallet/Address:</span> {details.wallet_or_address}
+                      </div>
+                    )}
+
+                    {wr.reason && (
+                      <p className="text-xs text-muted-foreground"><span className="font-semibold">Reason:</span> {wr.reason}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </TabsContent>
+
           {/* ... Rest of your existing TabsContent for investments, raffle, etc ... */}
         </Tabs>
       </div>
