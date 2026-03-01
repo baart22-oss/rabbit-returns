@@ -16,7 +16,6 @@ import { Link } from "react-router-dom";
 export default function Dashboard() {
   const { user } = useAuth();
   const [investments, setInvestments] = useState<any[]>([]);
-  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [raffleTickets, setRaffleTickets] = useState<any[]>([]);
   const [banking, setBanking] = useState<any>(null);
   const [bankForm, setBankForm] = useState({ bank_name: "", account_holder: "", account_number: "", branch_code: "" });
@@ -33,9 +32,8 @@ export default function Dashboard() {
   }, [user]);
 
   const loadData = async () => {
-    const [invRes, wdRes, rtRes, bkRes, profRes, commRes, wrRes] = await Promise.all([
+    const [invRes, rtRes, bkRes, profRes, commRes, wrRes] = await Promise.all([
       supabase.from("investments").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
-      supabase.from("withdrawals").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
       supabase.from("raffle_tickets").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
       supabase.from("banking_details").select("*").eq("user_id", user!.id).maybeSingle(),
       supabase.from("profiles").select("*").eq("user_id", user!.id).maybeSingle(),
@@ -43,7 +41,6 @@ export default function Dashboard() {
       supabase.from("withdrawal_requests").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
     ]);
     setInvestments(invRes.data || []);
-    setWithdrawals(wdRes.data || []);
     setRaffleTickets(rtRes.data || []);
     if (bkRes.data) { setBanking(bkRes.data); setBankForm(bkRes.data); }
     setProfile(profRes.data);
@@ -85,7 +82,7 @@ export default function Dashboard() {
 
   const getAvailableToWithdraw = (inv: any) => {
     const totalEarned = getAccumulatedEarnings(inv);
-    const withdrawnOrPending = withdrawals
+    const withdrawnOrPending = withdrawalRequests
       .filter(w => w.investment_id === inv.id && w.status !== "rejected")
       .reduce((sum, w) => sum + Number(w.amount), 0);
     return Math.max(0, totalEarned - withdrawnOrPending);
@@ -97,10 +94,15 @@ export default function Dashboard() {
     if (amount < 10) { toast.error("Minimum withdrawal is R10"); return; }
     
     setRequesting(true);
-    const { error } = await supabase.from("withdrawals").insert({
+    const { error } = await supabase.from("withdrawal_requests").insert({
       user_id: user!.id,
       investment_id: inv.id,
       amount: amount,
+      method: "Quick Withdrawal",
+      details: {
+        type: "earnings_withdrawal",
+        investment_id: inv.id,
+      },
       status: "pending"
     });
 
@@ -112,16 +114,20 @@ export default function Dashboard() {
   const requestBonusWithdrawal = async () => {
     if (!banking) { toast.error("Please add your banking details first"); return; }
     const paidCommissions = commissions.filter(c => c.status === "paid").reduce((sum, c) => sum + Number(c.amount), 0);
-    const withdrawnBonus = withdrawals.filter(w => w.investment_id === null && w.status !== "rejected").reduce((sum, w) => sum + Number(w.amount), 0);
+    const withdrawnBonus = withdrawalRequests.filter(w => w.investment_id === null && w.status !== "rejected").reduce((sum, w) => sum + Number(w.amount), 0);
     const available = paidCommissions - withdrawnBonus;
 
     if (available < 10) { toast.error("No available bonus to withdraw (Min R10)"); return; }
 
     setRequesting(true);
-    const { error } = await supabase.from("withdrawals").insert({
+    const { error } = await supabase.from("withdrawal_requests").insert({
       user_id: user!.id,
       investment_id: null,
       amount: available,
+      method: "Bonus Withdrawal",
+      details: {
+        type: "referral_bonus",
+      },
       status: "pending"
     });
     if (error) toast.error("Request failed");
@@ -130,12 +136,12 @@ export default function Dashboard() {
   };
 
   const totalAccumulated = investments.reduce((sum, i) => sum + getAccumulatedEarnings(i), 0);
-  const totalWithdrawn = withdrawals.filter(w => w.status === "processed").reduce((sum, w) => sum + Number(w.amount), 0);
+  const totalWithdrawn = withdrawalRequests.filter(w => w.status === "processed").reduce((sum, w) => sum + Number(w.amount), 0);
 
   const getAvailableBalance = () => {
     const earnedFromInvestments = investments.reduce((sum, i) => sum + getAvailableToWithdraw(i), 0);
     const paidCommissions = commissions.filter(c => c.status === "paid").reduce((sum, c) => sum + Number(c.amount), 0);
-    const withdrawnBonus = withdrawals.filter(w => w.investment_id === null && w.status !== "rejected").reduce((sum, w) => sum + Number(w.amount), 0);
+    const withdrawnBonus = withdrawalRequests.filter(w => w.investment_id === null && w.status !== "rejected").reduce((sum, w) => sum + Number(w.amount), 0);
     const bonusAvailable = paidCommissions - withdrawnBonus;
     return earnedFromInvestments + bonusAvailable;
   };
@@ -241,14 +247,15 @@ export default function Dashboard() {
 
           <TabsContent value="withdrawals">
             <Card>
-              <CardHeader><CardTitle>Legacy Withdrawal History</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Withdrawal History</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                {withdrawals.length === 0 ? <p className="text-center py-4 text-muted-foreground">No withdrawals yet.</p> :
-                  withdrawals.map(wd => (
+                {withdrawalRequests.length === 0 ? <p className="text-center py-4 text-muted-foreground">No withdrawals yet.</p> :
+                  withdrawalRequests.map(wd => (
                     <div key={wd.id} className="flex items-center justify-between border-b pb-3">
                       <div>
                         <p className="font-bold">R{Number(wd.amount).toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(wd.created_at).toLocaleDateString()} • {wd.investment_id ? 'Earnings' : 'Referral Bonus'}</p>
+                        {/* wd.method fallback supports legacy records without a method field */}
+                        <p className="text-xs text-muted-foreground">{new Date(wd.created_at).toLocaleDateString()} • {wd.method || (wd.investment_id ? 'Earnings' : 'Referral Bonus')}</p>
                       </div>
                       <Badge variant={wd.status === 'processed' ? 'default' : wd.status === 'rejected' ? 'destructive' : 'outline'}>{wd.status}</Badge>
                     </div>
