@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Wallet, Ticket, CreditCard, Copy, Users, TrendingUp } from "lucide-react";
+import { Coins, Wallet, Ticket, Copy, Users, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
@@ -22,6 +22,8 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [commissions, setCommissions] = useState<any[]>([]);
+  const [referredUsers, setReferredUsers] = useState<any[]>([]);
+  const [requestingBonus, setRequestingBonus] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -41,8 +43,19 @@ export default function Dashboard() {
     setWithdrawals(wdRes.data || []);
     setRaffleTickets(rtRes.data || []);
     if (bkRes.data) { setBanking(bkRes.data); setBankForm(bkRes.data); }
-    setProfile(profRes.data);
+    const prof = profRes.data;
+    setProfile(prof);
     setCommissions(commRes.data || []);
+
+    // Load referred users using this user's referral code
+    if (prof?.referral_code) {
+      const { data: refs } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, created_at, referral_code")
+        .eq("referred_by", prof.referral_code)
+        .order("created_at", { ascending: false });
+      setReferredUsers(refs || []);
+    }
   };
 
   const saveBanking = async () => {
@@ -87,6 +100,19 @@ export default function Dashboard() {
     }
   };
 
+  const requestBonusWithdrawal = async () => {
+    if (!banking) { toast.error("Please add your banking details first"); return; }
+    const pendingBonus = commissions.filter(c => c.status === "paid").reduce((sum, c) => sum + Number(c.amount), 0);
+    const alreadyRequested = withdrawals.filter(w => w.investment_id === null && w.status !== "rejected").reduce((sum, w) => sum + Number(w.amount), 0);
+    const available = pendingBonus - alreadyRequested;
+    if (available <= 0) { toast.error("No available bonus to withdraw"); return; }
+    setRequestingBonus(true);
+    const { error } = await supabase.from("withdrawals").insert({ user_id: user!.id, investment_id: null, amount: available });
+    if (error) toast.error("Failed to request withdrawal");
+    else { toast.success(`Withdrawal of R${available.toLocaleString()} requested!`); loadData(); }
+    setRequestingBonus(false);
+  };
+
   const statusColor = (s: string) => {
     switch (s) {
       case "active": return "default";
@@ -99,6 +125,9 @@ export default function Dashboard() {
 
   const totalInvested = investments.reduce((sum, i) => sum + Number(i.amount), 0);
   const totalCommissions = commissions.reduce((sum, c) => sum + Number(c.amount), 0);
+  const paidCommissions = commissions.filter(c => c.status === "paid").reduce((sum, c) => sum + Number(c.amount), 0);
+  const bonusWithdrawals = withdrawals.filter(w => w.investment_id === null && w.status !== "rejected").reduce((sum, w) => sum + Number(w.amount), 0);
+  const availableBonus = Math.max(0, paidCommissions - bonusWithdrawals);
 
   return (
     <div className="min-h-screen bg-background">
@@ -236,6 +265,60 @@ export default function Dashboard() {
                     <div className="flex justify-between"><span className="text-muted-foreground">Level 2</span><strong className="text-primary">3%</strong></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Level 3</span><strong className="text-primary">1%</strong></div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Bonus withdrawal card */}
+              <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-accent" /> Referral Bonus Balance</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div className="rounded-lg bg-muted p-3 text-center">
+                      <p className="text-muted-foreground text-xs">Total Earned</p>
+                      <p className="font-bold text-lg text-primary">R{totalCommissions.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-lg bg-muted p-3 text-center">
+                      <p className="text-muted-foreground text-xs">Paid Out</p>
+                      <p className="font-bold text-lg">R{paidCommissions.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-lg bg-accent/10 border border-accent/30 p-3 text-center">
+                      <p className="text-muted-foreground text-xs">Available</p>
+                      <p className="font-bold text-lg text-accent">R{availableBonus.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={requestBonusWithdrawal}
+                    disabled={requestingBonus || availableBonus <= 0}
+                    className="w-full bg-gradient-forest text-primary-foreground"
+                  >
+                    {requestingBonus ? "Requesting..." : availableBonus > 0 ? `Withdraw R${availableBonus.toLocaleString()} Bonus` : "No Bonus Available"}
+                  </Button>
+                  {!banking && <p className="text-xs text-muted-foreground text-center">Add your banking details first to enable withdrawals.</p>}
+                </CardContent>
+              </Card>
+
+              {/* People you referred */}
+              <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-secondary" /> People You Referred ({referredUsers.length})</CardTitle></CardHeader>
+                <CardContent>
+                  {referredUsers.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-4">No referrals yet. Share your code to earn commissions!</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {referredUsers.map((u, i) => (
+                        <div key={u.user_id} className="flex items-center justify-between rounded-lg bg-muted p-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary font-bold text-sm">{i + 1}</div>
+                            <div>
+                              <span className="font-medium">{u.full_name || "Anonymous User"}</span>
+                              <p className="text-xs text-muted-foreground">Joined {new Date(u.created_at).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-xs">Level 1</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
