@@ -18,7 +18,8 @@ export default function AdminDashboard() {
   const [raffleTickets, setRaffleTickets] = useState<any[]>([]);
   const [commissions, setCommissions] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
-const [bankingDetails, setBankingDetails] = useState<any[]>([]);
+  const [bankingDetails, setBankingDetails] = useState<any[]>([]);
+
   useEffect(() => {
     if (isAdmin) loadAll();
   }, [isAdmin]);
@@ -30,16 +31,15 @@ const [bankingDetails, setBankingDetails] = useState<any[]>([]);
       supabase.from("raffle_tickets").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("referral_commissions").select("*").order("created_at", { ascending: false }),
-      supabase.from("banking_details").select("*"), // Added this line
+      supabase.from("banking_details").select("*"),
     ]);
     setInvestments(inv.data || []);
     setWithdrawals(wd.data || []);
     setRaffleTickets(rt.data || []);
     setProfiles(pr.data || []);
     setCommissions(cm.data || []);
-    setBankingDetails(bd.data || []); // Added this line
+    setBankingDetails(bd.data || []);
   };
-  
 
   const updateInvestmentStatus = async (id: string, status: string) => {
     const updates: any = { status };
@@ -59,15 +59,14 @@ const [bankingDetails, setBankingDetails] = useState<any[]>([]);
     }
     
     const { error } = await supabase.from("withdrawals").update(updates).eq("id", id);
-    
     if (error) {
       toast.error("Failed to update status");
       return;
     }
-
-    // We removed the code that updates investment status to "withdrawn".
-    // This allows the investment to remain "active" or "matured" so it keeps earning.
-
+    
+    // Logic updated: We no longer update investment status to "withdrawn".
+    // This allows investments to keep earning.
+    
     toast.success("Withdrawal updated");
     loadAll();
   };
@@ -155,11 +154,13 @@ const [bankingDetails, setBankingDetails] = useState<any[]>([]);
             </div>
           </TabsContent>
 
-                       {withdrawals.map((wd) => {
+          <TabsContent value="withdrawals">
+            <div className="space-y-3">
+              {withdrawals.length === 0 && <p className="text-muted-foreground text-sm">No requests.</p>}
+              {withdrawals.map((wd) => {
                 const isBonus = wd.investment_id === null;
                 const userProfile = profiles.find(p => p.user_id === wd.user_id);
                 const userBank = bankingDetails.find(b => b.user_id === wd.user_id);
-
                 return (
                   <Card key={wd.id}>
                     <CardContent className="p-4 space-y-4">
@@ -174,11 +175,8 @@ const [bankingDetails, setBankingDetails] = useState<any[]>([]);
                           <p className="text-xs text-muted-foreground">{new Date(wd.created_at).toLocaleString()}</p>
                         </div>
                         <Select onValueChange={(v) => updateWithdrawalStatus(wd.id, v)}>
-  <SelectTrigger className="w-36">
-     <SelectValue placeholder="Update" />
-  </SelectTrigger>
-  {/* ... rest of Select content ... */}
-</Select>
+                          <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
+                          <SelectContent>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="processed">Processed</SelectItem>
                             <SelectItem value="rejected">Rejected</SelectItem>
@@ -186,13 +184,12 @@ const [bankingDetails, setBankingDetails] = useState<any[]>([]);
                         </Select>
                       </div>
 
-                      {/* Display Banking Details */}
                       {userBank ? (
                         <div className="rounded bg-muted p-3 text-xs grid grid-cols-2 gap-2">
-                          <div><span className="text-muted-foreground">Bank:</span> {userBank.bank_name}</div>
-                          <div><span className="text-muted-foreground">Account:</span> {userBank.account_number}</div>
-                          <div><span className="text-muted-foreground">Holder:</span> {userBank.account_holder}</div>
-                          <div><span className="text-muted-foreground">Branch:</span> {userBank.branch_code}</div>
+                          <div><span className="text-muted-foreground font-semibold">Bank:</span> {userBank.bank_name}</div>
+                          <div><span className="text-muted-foreground font-semibold">Account:</span> {userBank.account_number}</div>
+                          <div><span className="text-muted-foreground font-semibold">Holder:</span> {userBank.account_holder}</div>
+                          <div><span className="text-muted-foreground font-semibold">Branch:</span> {userBank.branch_code}</div>
                         </div>
                       ) : (
                         <p className="text-xs text-destructive">User has not added banking details.</p>
@@ -201,6 +198,7 @@ const [bankingDetails, setBankingDetails] = useState<any[]>([]);
                   </Card>
                 );
               })}
+            </div>
           </TabsContent>
 
           <TabsContent value="raffle">
