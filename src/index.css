@@ -1,3 +1,26 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --color-primary: #1D4ED8; // Example primary color
+  --color-secondary: #9333EA; // Example secondary color
+  --color-muted: #F3F4F6; // Example muted color
+  --color-accent: #FBBF24; // Example accent color
+  --color-card: #FFFFFF; // Example card color
+  --color-background: #F9FAFB; // Example background color
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-muted);
+}
+
+.card {
+  background-color: var(--color-card);
+}
+
+.button {
+  background-color: var(--color-primary);
+  color: white;
+}
