@@ -1,1 +1,1 @@
-{\n  "compilerOptions": {\n    "strict": true,\n    "baseUrl": ".",\n    "paths": {\n      "src/*": ["src/*"],\n      "components/*": ["src/components/*"],\n      "assets/*": ["src/assets/*"]\n    }\n  }\n}
+{"compilerOptions": {"target": "esnext", "module": "esnext", "jsx": "react-jsx", "strict": true, "esModuleInterop": true, "skipLibCheck": true, "forceConsistentCasingInFileNames": true, "moduleResolution": "node"}, "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"], "exclude": ["node_modules"]}
