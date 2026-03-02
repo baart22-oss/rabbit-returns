@@ -1,1 +1,40 @@
-import React, { useState } from 'react';\nimport './Auth.css';\n\nconst Auth = () => {\n    const [isLogin, setIsLogin] = useState(true);\n    const [email, setEmail] = useState('');\n    const [password, setPassword] = useState('');\n\n    const handleSubmit = (event) => {\n        event.preventDefault();\n        // Handle the submit logic here\n        console.log('Submitted:', { email, password, isLogin });\n    };\n\n    return (\n        <div className="auth-container">\n            <h2>{isLogin ? 'Login' : 'Register'}</h2>\n            <form onSubmit={handleSubmit}>\n                <div className="form-group">\n                    <label htmlFor="email">Email:</label>\n                    <input\n                        type="email"\n                        id="email"\n                        value={email}\n                        onChange={(e) => setEmail(e.target.value)}\n                        required\n                    />\n                </div>\n                <div className="form-group">\n                    <label htmlFor="password">Password:</label>\n                    <input\n                        type="password"\n                        id="password"\n                        value={password}\n                        onChange={(e) => setPassword(e.target.value)}\n                        required\n                    />\n                </div>\n                <button type="submit">{isLogin ? 'Login' : 'Register'}</button>\n            </form>\n            <button onClick={() => setIsLogin(!isLogin)}>\n                Switch to {isLogin ? 'Register' : 'Login'}\n            </button>\n        </div>\n    );\n};\n\nexport default Auth;\n
+import React from 'react';
+import { useState } from 'react';
+import './Auth.css';
+
+const Auth = () => {
+    const [isLogin, setIsLogin] = useState(true);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+
+    const switchAuthModeHandler = () => {
+        setIsLogin((prevMode) => !prevMode);
+    };
+
+    const submitHandler = (event) => {
+        event.preventDefault();
+        // Add your authentication logic here (API calls, etc.)
+    };
+
+    return (
+        <div className="auth-form">
+            <h2>{isLogin ? 'Login' : 'Register'}</h2>
+            <form onSubmit={submitHandler}>
+                <div className="form-control">
+                    <label htmlFor="email">Email</label>
+                    <input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                </div>
+                <div className="form-control">
+                    <label htmlFor="password">Password</label>
+                    <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                </div>
+                <div className="form-actions">
+                    <button type="submit">{isLogin ? 'Login' : 'Create Account'}</button>
+                    <button type="button" onClick={switchAuthModeHandler}>{isLogin ? 'Switch to Register' : 'Switch to Login'}</button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+export default Auth;
