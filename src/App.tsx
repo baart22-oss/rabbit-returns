@@ -1,19 +1,25 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
+import { AuthProvider } from './AuthProvider';
+import Home from './Home';
+import Auth from './Auth';
+import Dashboard from './Dashboard';
+import Invest from './Invest';
+import Raffle from './Raffle';
 
-const App: React.FC = () => {
+const App = () => {
   return (
-    <Router>
-      <Switch>
-        <Route path="/" exact>
-          <div>Home Page</div>
-        </Route>
-        <Route path="/about">
-          <div>About Page</div>
-        </Route>
-        {/* Add more routes here */}
-      </Switch>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Switch>
+          <Route path='/' exact component={Home} />
+          <Route path='/auth' component={Auth} />
+          <Route path='/dashboard' component={Dashboard} />
+          <Route path='/invest' component={Invest} />
+          <Route path='/raffle' component={Raffle} />
+        </Switch>
+      </Router>
+    </AuthProvider>
   );
 };
 
