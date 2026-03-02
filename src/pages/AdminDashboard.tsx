@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import supabase from "@/integrations/supabase/client";
+import { apiFetch } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import AdminWithdrawalPanel from "@/components/AdminWithdrawalPanel";
 import { Button } from "@/components/ui/button";
@@ -8,61 +8,37 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Coins, Ticket, Wallet, FileCheck, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 import { getAllWithdrawalRequests, type WithdrawalRequest } from "@/lib/withdrawalStorage";
 
 export default function AdminDashboard() {
   const { user, loading } = useAuth();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdmin = user?.role === 'admin';
   const [investments, setInvestments] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
-  const [raffleTickets, setRaffleTickets] = useState<any[]>([]);
-  const [commissions, setCommissions] = useState<any[]>([]);
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [bankingDetails, setBankingDetails] = useState<any[]>([]);
-  const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
   const [localWithdrawalRequests, setLocalWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
-
-  useEffect(() => {
-    const checkAdmin = async () => {
-      if (!user) return;
-      const { data } = await supabase.rpc("has_role", { _role: "admin", _user_id: user.id });
-      setIsAdmin(!!data);
-    };
-    checkAdmin();
-  }, [user]);
 
   useEffect(() => {
     if (isAdmin) loadAll();
   }, [isAdmin]);
 
   const loadAll = async () => {
-    const [inv, wd, rt, pr, cm, bd] = await Promise.all([
-      supabase.from("investments").select("*").order("created_at", { ascending: false }),
-      supabase.from("withdrawals").select("*").order("created_at", { ascending: false }),
-      supabase.from("raffle_tickets").select("*").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("referral_commissions").select("*").order("created_at", { ascending: false }),
-      supabase.from("banking_details").select("*"),
+    const [inv, wd] = await Promise.all([
+      apiFetch<any[]>('/admin/investments'),
+      apiFetch<any[]>('/admin/withdrawals'),
     ]);
     setInvestments(inv.data || []);
     setWithdrawals(wd.data || []);
-    setRaffleTickets(rt.data || []);
-    setProfiles(pr.data || []);
-    setCommissions(cm.data || []);
-    setBankingDetails(bd.data || []);
     setLocalWithdrawalRequests(getAllWithdrawalRequests());
   };
 
   const updateWithdrawalStatus = async (id: string, status: string) => {
-    const updates: any = { status };
-    if (status === "processed") updates.processed_at = new Date().toISOString();
-    
-    const { error } = await supabase.from("withdrawals").update(updates).eq("id", id);
+    const { error } = await apiFetch(`/admin/withdrawals/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
     if (error) { toast.error("Update failed"); return; }
-    
     toast.success("Withdrawal updated.");
     loadAll();
   };
@@ -86,7 +62,7 @@ export default function AdminDashboard() {
           <TabsContent value="investments" className="space-y-4">
             {investments.length === 0 && <p>No investments.</p>}
             {investments.map((inv: any) => (
-              <Card key={inv.id}>
+              <Card key={inv._id}>
                 <CardContent className="p-4">
                   <p className="font-bold">R{Number(inv.amount).toLocaleString()}</p>
                   <Badge>{inv.status}</Badge>
@@ -97,39 +73,36 @@ export default function AdminDashboard() {
 
           <TabsContent value="withdrawals" className="space-y-4">
             {withdrawals.length === 0 && <p>No requests.</p>}
-            {withdrawals.map((wd: any) => {
-              const userProfile = profiles.find((p: any) => p.user_id === wd.user_id);
-              const userBank = bankingDetails.find((b: any) => b.user_id === wd.user_id);
-              return (
-                <Card key={wd.id}>
-                  <CardContent className="p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="text-lg font-bold">R{Number(wd.amount).toLocaleString()}</p>
-                        <Badge variant={wd.status === 'processed' ? 'default' : 'outline'}>{wd.status}</Badge>
-                        <p className="text-sm font-medium">{userProfile?.full_name}</p>
-                      </div>
-                      <Select onValueChange={(v) => updateWithdrawalStatus(wd.id, v)}>
-                        <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="processed">Processed</SelectItem>
-                          <SelectItem value="rejected">Rejected</SelectItem>
-                        </SelectContent>
-                      </Select>
+            {withdrawals.map((wd: any) => (
+              <Card key={wd._id}>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-lg font-bold">R{Number(wd.amount).toLocaleString()}</p>
+                      <Badge variant={wd.status === 'processed' ? 'default' : 'outline'}>{wd.status}</Badge>
+                      <p className="text-sm font-medium">{wd.user?.email}</p>
                     </div>
-                    {userBank && (
-                      <div className="rounded bg-muted p-3 text-xs grid grid-cols-2 gap-2">
-                        <div><span className="text-muted-foreground font-semibold">Bank:</span> {userBank.bank_name}</div>
-                        <div><span className="text-muted-foreground font-semibold">Account:</span> {userBank.account_number}</div>
-                        <div><span className="text-muted-foreground font-semibold">Holder:</span> {userBank.account_holder}</div>
-                        <div><span className="text-muted-foreground font-semibold">Branch:</span> {userBank.branch_code}</div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+                    <Select onValueChange={(v) => updateWithdrawalStatus(wd._id, v)}>
+                      <SelectTrigger className="w-36"><SelectValue placeholder="Update" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="processed">Processed</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {wd.bankDetails && (
+                    <div className="rounded bg-muted p-3 text-xs grid grid-cols-2 gap-2">
+                      <div><span className="text-muted-foreground font-semibold">Bank:</span> {wd.bankDetails.bankName}</div>
+                      <div><span className="text-muted-foreground font-semibold">Account:</span> {wd.bankDetails.accountNumber}</div>
+                      <div><span className="text-muted-foreground font-semibold">Holder:</span> {wd.bankDetails.accountHolder}</div>
+                      <div><span className="text-muted-foreground font-semibold">Branch:</span> {wd.bankDetails.branchCode}</div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
           </TabsContent>
 
           <TabsContent value="local-withdrawals">
