@@ -1,26 +1,23 @@
 import React, { useState } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const history = useHistory();
+  const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       if (isLogin) {
-        // Handle login functionality (mock)
-        // await login(email, password);
+        // Handle login
       } else {
-        // Handle signup functionality (mock)
-        // await signup(email, password);
+        // Handle signup
       }
-      // Redirect to dashboard on success
-      history.push('/dashboard');
+      navigate('/dashboard');
     } catch (error) {
       console.error('Authentication failed:', error);
     } finally {
@@ -32,20 +29,8 @@ const AuthPage = () => {
     <div>
       <h1>{isLogin ? 'Sign In' : 'Sign Up'}</h1>
       <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         <button type="submit" disabled={loading}>
           {loading ? 'Loading...' : isLogin ? 'Sign In' : 'Sign Up'}
         </button>
