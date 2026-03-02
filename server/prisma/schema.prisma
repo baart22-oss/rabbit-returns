@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role { user admin }
+enum InvestmentStatus { pending active matured rejected }
+enum WithdrawalStatus { pending approved rejected paid }
+enum RaffleTicketStatus { pending active rejected }
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(user)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  profile           Profile?
+  bankingDetails    BankingDetails?
+  investments       Investment[]
+  withdrawals       Withdrawal[]
+  raffleTickets     RaffleTicket[]
+  commissionsEarned ReferralCommission[] @relation("earner")
+  referralsMade     ReferralCommission[] @relation("referrer")
+}
+
+model Profile {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName     String
+  phone        String?
+  referralCode String   @unique
+  referredBy   String?
+  createdAt    DateTime @default(now())
+}
+
+model BankingDetails {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountHolder String
+  bankName      String
+  accountNumber String
+  branchCode    String
+  accountType   String
+  payfastEmail  String?
+  updatedAt     DateTime @updatedAt
+}
+
+model Investment {
+  id               String           @id @default(uuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packageName      String
+  amountRand       Float
+  status           InvestmentStatus @default(pending)
+  proofOfPayment   String?
+  paymentReference String?
+  startedAt        DateTime?
+  maturesAt        DateTime?
+  totalEarned      Float            @default(0)
+  lastAccruedAt    DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  commissions      ReferralCommission[]
+}
+
+model Withdrawal {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountRand    Float
+  status        WithdrawalStatus @default(pending)
+  bankName      String
+  accountHolder String
+  accountNumber String
+  branchCode    String
+  accountType   String
+  adminNote     String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model RaffleTicket {
+  id               String             @id @default(uuid())
+  userId           String
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           RaffleTicketStatus @default(pending)
+  proofOfPayment   String?
+  paymentReference String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model ReferralCommission {
+  id           String     @id @default(uuid())
+  investmentId String
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  earnerId     String
+  earner       User       @relation("earner", fields: [earnerId], references: [id])
+  referrerId   String
+  referrer     User       @relation("referrer", fields: [referrerId], references: [id])
+  level        Int
+  amountRand   Float
+  createdAt    DateTime   @default(now())
+}
