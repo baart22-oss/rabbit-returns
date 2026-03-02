@@ -1,26 +1,23 @@
-import React from 'react';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
-import { AuthProvider } from './AuthProvider';
-import Home from './Home';
-import Auth from './Auth';
-import Dashboard from './Dashboard';
-import Invest from './Invest';
-import Raffle from './Raffle';
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import Home from './pages/Home'
+import Auth from './pages/Auth'
+import Dashboard from './pages/Dashboard'
+import Invest from './pages/Invest'
+import Raffle from './pages/Raffle'
 
-const App = () => {
+function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Switch>
-          <Route path='/' exact component={Home} />
-          <Route path='/auth' component={Auth} />
-          <Route path='/dashboard' component={Dashboard} />
-          <Route path='/invest' component={Invest} />
-          <Route path='/raffle' component={Raffle} />
-        </Switch>
-      </Router>
-    </AuthProvider>
-  );
-};
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/invest" element={<Invest />} />
+        <Route path="/raffle" element={<Raffle />} />
+      </Routes>
+    </Router>
+  )
+}
 
-export default App;
+export default App
