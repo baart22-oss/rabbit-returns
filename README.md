@@ -1,73 +1,45 @@
-# Welcome to your Lovable project
+# Rabbit Returns
 
-## Project info
+## Overview
+Rabbit Returns is an innovative project that aims to revolutionize the way we handle investments and transactions.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
+- Comprehensive investment management system
+- Real-time payment processing
+- User-friendly dashboard
+- Detailed reporting and analytics
 
-## How can I edit this code?
+## Tech Stack
+- **Frontend:** React.js, Redux
+- **Backend:** Node.js, Express
+- **Database:** MongoDB
+- **Payment Processing:** Stripe API
 
-There are several ways of editing your application.
+## Project Structure
+- **/client**: Contains frontend application code
+- **/server**: Contains backend application code
+- **/config**: Configuration files for deployment
+- **/docs**: Documentation files
 
-**Use Lovable**
+## Getting Started
+1. Clone the repository:  `git clone https://github.com/baart22-oss/rabbit-returns.git`
+2. Navigate to the project directory: `cd rabbit-returns`
+3. Install dependencies:  
+   - For the frontend: `cd client && npm install`
+   - For the backend: `cd server && npm install`
+4. Set up environment variables as per instructions in the `/config` directory.
+5. Start the development server:  
+   - For the frontend: `npm start` (inside the client directory)
+   - For the backend: `npm run dev` (inside the server directory)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Investment System Details
+The investment system in Rabbit Returns is designed to be secure and efficient. Users can:
+- Make investments with ease using various payment options.
+- View their investment portfolio at any time.
 
-Changes made via Lovable will be committed automatically to this repo.
+## Payment Information
+- Supported payment methods include credit/debit cards via Stripe.
+- Transactions are secured and comply with the latest financial regulations.
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Conclusion
+With Rabbit Returns, investing has never been easier. Visit our documentation for more details on usage and deployment.
