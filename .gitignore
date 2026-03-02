@@ -1,25 +1,23 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Node modules
+node_modules/
 
-node_modules
-dist
-dist-ssr
-*.local
+# Distribution folder
+/dist/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# macOS .DS_Store files
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+
+# Environment files
 .env
+*.env.local
+*.env.*.local
+
+# Editor config
+.editorconfig
+
+# Other unnecessary files
+Thumbs.db
+*.log
+*.backup
+*.tmp
+*.swp
