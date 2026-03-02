@@ -15,11 +15,36 @@ import { runAccrual } from './services/accrual';
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173' }));
+// Build allowed origins from env — supports comma-separated list
+const allowedOrigins: string[] = ['http://localhost:5173', 'http://localhost:3000'];
+if (process.env.CLIENT_ORIGIN) {
+  process.env.CLIENT_ORIGIN.split(',').forEach((o) => allowedOrigins.push(o.trim()));
+}
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow no-origin requests (health checks, curl, mobile)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+// Handle all preflight OPTIONS requests
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 const uploadDir = path.resolve(process.env.UPLOAD_DIR ?? 'uploads');
 app.use('/uploads', express.static(uploadDir));
+
+// Health check
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -51,5 +76,6 @@ cron.schedule('0 2 * * *', () => {
 
 const PORT = process.env.PORT ?? 4000;
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Allowed CORS origins: ${allowedOrigins.join(', ')}`);
 });
