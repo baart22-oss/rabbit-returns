@@ -1,35 +1,39 @@
 import React from 'react';
 
 const Dashboard: React.FC = () => {
-    // Sample data for investments and account details
+    // Dummy data for demonstration
+    const userBalance = 10000;
+    const userReturns = 2500;
     const investments = [
-        { id: 1, name: 'Stock A', amount: 1000, return: '+10%' },
-        { id: 2, name: 'Bond B', amount: 2000, return: '+5%' },
-        { id: 3, name: 'Crypto C', amount: 500, return: '-2%' },
+        { id: 1, name: 'Investment A', amount: 5000 },
+        { id: 2, name: 'Investment B', amount: 3000 },
+        { id: 3, name: 'Investment C', amount: 2000 }
     ];
-
-    const accountDetails = {
-        username: 'user123',
-        email: 'user@example.com',
-        balance: 15000,
-    };
 
     return (
         <div>
             <h1>User Dashboard</h1>
-            <h2>Account Details</h2>
-            <p><strong>Username:</strong> {accountDetails.username}</p>
-            <p><strong>Email:</strong> {accountDetails.email}</p>
-            <p><strong>Balance:</strong> ${accountDetails.balance}</p>
-
-            <h2>Investments</h2>
-            <ul>
-                {investments.map(investment => (
-                    <li key={investment.id}>
-                        {investment.name}: ${investment.amount} - {investment.return}
-                    </li>
-                ))}
-            </ul>
+            <h2>Balance: ${userBalance}</h2>
+            <h2>Returns: ${userReturns}</h2>
+            <h3>Investments</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {investments.map(investment => (
+                        <tr key={investment.id}>
+                            <td>{investment.id}</td>
+                            <td>{investment.name}</td>
+                            <td>${investment.amount}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 };
