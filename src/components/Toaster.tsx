@@ -1,15 +1,7 @@
-import React from 'react';
-import { ToastContainer, Toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { Toaster as SonnerToaster } from "sonner";
 
-const Toaster: React.FC = () => {
-    return (
-        <ToastContainer>
-            <Toast>
-                <div>Your toast notification message</div>
-            </Toast>
-        </ToastContainer>
-    );
+const Toaster = () => {
+  return <SonnerToaster position="top-right" richColors />;
 };
 
 export default Toaster;
