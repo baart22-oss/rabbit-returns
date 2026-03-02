@@ -7,10 +7,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role { user admin }
-enum InvestmentStatus { pending active matured rejected }
-enum WithdrawalStatus { pending approved rejected paid }
-enum RaffleTicketStatus { pending active rejected }
+enum Role {
+  user
+  admin
+}
+
+enum InvestmentStatus {
+  pending
+  active
+  matured
+  rejected
+}
+
+enum WithdrawalStatus {
+  pending
+  approved
+  rejected
+  paid
+}
+
+enum RaffleTicketStatus {
+  pending
+  active
+  rejected
+}
 
 model User {
   id           String   @id @default(uuid())
