@@ -1,8 +1,2 @@
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabaseUrl = 'https://your-supabase-url.supabase.co';
-const supabaseAnonKey = 'your-anon-key';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-export default supabase;
+// Supabase has been removed. Use src/lib/api.ts instead.
+export default null;
