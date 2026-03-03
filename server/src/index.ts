@@ -15,27 +15,49 @@ import { runAccrual } from './services/accrual';
 
 const app = express();
 
-// Build allowed origins from env — supports comma-separated list
+// --- UPDATED CORS BLOCK START ---
 const allowedOrigins: string[] = ['http://localhost:5173', 'http://localhost:3000'];
 if (process.env.CLIENT_ORIGIN) {
-  process.env.CLIENT_ORIGIN.split(',').forEach((o) => allowedOrigins.push(o.trim()));
+  process.env.CLIENT_ORIGIN.split(',').forEach((o) => {
+    // Automatically cleans up the URL (removes spaces and trailing slashes)
+    const origin = o.trim().replace(/\/$/, ""); 
+    if (origin && !allowedOrigins.includes(origin)) {
+      allowedOrigins.push(origin);
+    }
+  });
 }
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    // Allow no-origin requests (health checks, curl, mobile)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // This will help us debug in Render logs if the URL still doesn't match
+    console.error(`CORS Blocked: Request from ${origin} is not in allowed list.`);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  optionsSuccessStatus: 200
 };
 
+// Apply standard CORS middleware
 app.use(cors(corsOptions));
-// Handle all preflight OPTIONS requests
-app.options('*', cors(corsOptions));
+
+// Force explicit response for ALL preflight (OPTIONS) requests
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  return res.sendStatus(200);
+});
+// --- UPDATED CORS BLOCK END ---
+
 app.use(express.json());
 
 const uploadDir = path.resolve(process.env.UPLOAD_DIR ?? 'uploads');
@@ -62,6 +84,7 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
 });
 
+// Routes
 app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/investments', apiLimiter, investmentsRouter);
 app.use('/api/raffle', apiLimiter, raffleRouter);
