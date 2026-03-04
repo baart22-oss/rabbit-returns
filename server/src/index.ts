@@ -14,6 +14,7 @@ import paymentsRouter from './routes/payments';
 import { runAccrual } from './services/accrual';
 
 const app = express();
+
 // TRUST PROXY - required when running behind a proxy (Render sets X-Forwarded-For)
 // Prevents express-rate-limit error: ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
 // Default to trusting the first proxy; override by setting TRUST_PROXY env var.
