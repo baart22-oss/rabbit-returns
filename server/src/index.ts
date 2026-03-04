@@ -17,9 +17,17 @@ const app = express();
 
 // TRUST PROXY - required when running behind a proxy (Render sets X-Forwarded-For)
 // Prevents express-rate-limit error: ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
-// Default to trusting the first proxy; override by setting TRUST_PROXY env var.
-const trustProxy = process.env.TRUST_PROXY ?? '1';
-app.set('trust proxy', trustProxy);
+// Default: trust the first proxy (1). You can set TRUST_PROXY env to '1', 'true', '0', 'false', or a number.
+const rawTrustProxy = process.env.TRUST_PROXY ?? '1';
+
+let trustProxyValue: boolean | number | string = rawTrustProxy;
+if (rawTrustProxy === 'true') trustProxyValue = true;
+else if (rawTrustProxy === 'false') trustProxyValue = false;
+else if (!Number.isNaN(Number(rawTrustProxy))) trustProxyValue = Number(rawTrustProxy);
+
+app.set('trust proxy', trustProxyValue);
+console.log(`trust proxy set to: ${String(trustProxyValue)}`);
+
 // --- UPDATED CORS BLOCK START ---
 const allowedOrigins: string[] = ['http://localhost:5173', 'http://localhost:3000'];
 if (process.env.CLIENT_ORIGIN) {
