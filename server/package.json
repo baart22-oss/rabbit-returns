@@ -40,3 +40,7 @@
     "typescript": "^5.3.3"
   }
 }
+"devDependencies": {
+  // ...other stuff...
+  "typescript": "^5.4.3"
+}
