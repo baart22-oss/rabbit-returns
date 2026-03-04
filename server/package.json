@@ -1,3 +1,7 @@
+"scripts": {
+  "build": "tsc",
+  "start": "node dist/index.js"
+}
 {
   "name": "rabbit-returns-server",
   "version": "1.0.0",
