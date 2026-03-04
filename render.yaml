@@ -3,7 +3,9 @@ services:
     name: rabbit-returns-api
     runtime: node
     rootDir: server
-    buildCommand: npm install && npx prisma generate && npm run build
+    # ensure devDependencies (types) are installed during build
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm install && npx prisma generate && npm run build
+    # start the compiled JS
     startCommand: npm run start
     healthCheckPath: /health
     envVars:
@@ -12,9 +14,7 @@ services:
       - key: PORT
         value: "4000"
       - key: DATABASE_URL
-        fromDatabase:
-          name: rabbit-returns-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: CLIENT_ORIGIN
@@ -49,9 +49,4 @@ services:
         value: uploads
       - key: MAX_UPLOAD_MB
         value: "10"
-
-databases:
-  - name: rabbit-returns-db
-    databaseName: rabbit_returns
-    user: rabbit_returns
-    plan: free
+# No Render-managed database block because you use Supabase
