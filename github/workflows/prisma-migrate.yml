@@ -1,0 +1,51 @@
+name: Deploy Prisma migrations
+
+# Run on pushes to your production branch(s)
+on:
+  push:
+    branches:
+      - main
+      - lovable-site
+
+jobs:
+  migrate:
+    name: Run Prisma migrations & seed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+
+      - name: Deploy Prisma migrations (use direct DB URL)
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
+          # Optional: ensure SSL if needed
+          PGSSLMODE: require
+        run: |
+          echo "Running prisma migrate deploy (DIRECT_URL)"
+          npx prisma migrate deploy --schema=prisma/schema.prisma
+
+      - name: Seed database (optional)
+        if: ${{ secrets.ADMIN_EMAIL && secrets.ADMIN_PASSWORD }} # will run only if secrets exist
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          PGSSLMODE: require
+        run: |
+          echo "Running seed script"
+          npm run db:seed
