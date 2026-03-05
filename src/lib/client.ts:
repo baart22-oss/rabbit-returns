@@ -1,0 +1,72 @@
+import { api as buildUrl } from './api'; // <-- uses your normalize helper
+const TOKEN_KEY = 'rabbit_token';
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    ...(options.body && !(options.body instanceof FormData)
+      ? { 'Content-Type': 'application/json' }
+      : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  const url = buildUrl(path);
+  const res = await fetch(url, { ...options, headers });
+
+  if (res.status === 401) {
+    clearToken();
+    window.location.href = '/auth';
+    throw new Error('Unauthorized');
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error ?? res.statusText);
+  }
+
+  return res.json() as Promise<T>;
+}
+
+// --- export the same api surface you already use in code ---
+export const api = {
+  auth: {
+    signup(email: string, password: string, fullName: string, referralCode?: string) {
+      return request<{ token: string; user: any }>('/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, fullName, referralCode }),
+      }).then((data) => {
+        setToken(data.token);
+        return data;
+      });
+    },
+
+    login(email: string, password: string) {
+      return request<{ token: string; user: any }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      }).then((data) => {
+        setToken(data.token);
+        return data;
+      });
+    },
+
+    me() {
+      return request<any>('/auth/me');
+    },
+  },
+
+  // ... copy other sections from your existing client (investments, raffle, etc.)
+};
