@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { api, type Investment, type Withdrawal, type RaffleTicket, type User, type DashboardStats } from '../lib/api';
+import { api, type Investment, type Withdrawal, type RaffleTicket, type User, type DashboardStats } from '../lib/client';
 import { toast } from 'sonner';
 
 export default function AdminDashboard() {
