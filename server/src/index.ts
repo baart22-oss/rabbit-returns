@@ -28,17 +28,40 @@ else if (!Number.isNaN(Number(rawTrustProxy))) trustProxyValue = Number(rawTrust
 app.set('trust proxy', trustProxyValue);
 console.log(`trust proxy set to: ${String(trustProxyValue)}`);
 
-// --- UPDATED CORS BLOCK START ---
-const allowedOrigins: string[] = ['http://localhost:5173', 'http://localhost:3000'];
-if (process.env.CLIENT_ORIGIN) {
-  process.env.CLIENT_ORIGIN.split(',').forEach((o) => {
-    // Automatically cleans up the URL (removes spaces and trailing slashes)
-    const origin = o.trim().replace(/\/$/, ""); 
-    if (origin && !allowedOrigins.includes(origin)) {
-      allowedOrigins.push(origin);
+// --- UPDATED CORS BLOCK START (flexible vercel preview support) ---
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests with no origin (curl/server-to-server)
+    if (!origin) return callback(null, true);
+
+    const cleaned = origin.trim().replace(/\/$/, '');
+
+    // Exact allowed origins from env and local list
+    if (allowedOrigins.includes(cleaned)) {
+      return callback(null, true);
     }
-  });
-}
+
+    // Allow Vercel preview/alias hosts (any origin that ends with ".vercel.app")
+    // This echoes the incoming origin (required when credentials: true).
+    try {
+      const url = new URL(cleaned);
+      if (url.hostname.endsWith('.vercel.app')) {
+        console.log(`CORS Allowed (vercel preview): ${cleaned}`);
+        return callback(null, true);
+      }
+    } catch (err) {
+      // If URL parsing fails, fall through to reject
+    }
+
+    console.error(`CORS Blocked: Request from ${cleaned} is not in allowed list.`);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  optionsSuccessStatus: 200
+};
+// --- UPDATED CORS BLOCK END ---
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
