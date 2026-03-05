@@ -28,21 +28,30 @@ else if (!Number.isNaN(Number(rawTrustProxy))) trustProxyValue = Number(rawTrust
 app.set('trust proxy', trustProxyValue);
 console.log(`trust proxy set to: ${String(trustProxyValue)}`);
 
-// --- UPDATED CORS BLOCK START (flexible vercel preview support) ---
+// --- CORS BLOCK (single canonical block) ---
+const allowedOrigins: string[] = ['http://localhost:5173', 'http://localhost:3000'];
+
+// If CLIENT_ORIGIN env is provided, merge comma-separated origins into the list
+if (process.env.CLIENT_ORIGIN) {
+  process.env.CLIENT_ORIGIN.split(',').forEach((o) => {
+    const origin = o.trim().replace(/\/$/, '');
+    if (origin && !allowedOrigins.includes(origin)) allowedOrigins.push(origin);
+  });
+}
+
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    // Allow non-browser requests with no origin (curl/server-to-server)
+    // Allow non-browser requests (no origin)
     if (!origin) return callback(null, true);
 
     const cleaned = origin.trim().replace(/\/$/, '');
 
-    // Exact allowed origins from env and local list
+    // Exact matches from allowedOrigins
     if (allowedOrigins.includes(cleaned)) {
       return callback(null, true);
     }
 
-    // Allow Vercel preview/alias hosts (any origin that ends with ".vercel.app")
-    // This echoes the incoming origin (required when credentials: true).
+    // Allow Vercel preview hosts (any origin ending with ".vercel.app")
     try {
       const url = new URL(cleaned);
       if (url.hostname.endsWith('.vercel.app')) {
@@ -50,7 +59,7 @@ const corsOptions: cors.CorsOptions = {
         return callback(null, true);
       }
     } catch (err) {
-      // If URL parsing fails, fall through to reject
+      // ignore parse errors and fall through to reject
     }
 
     console.error(`CORS Blocked: Request from ${cleaned} is not in allowed list.`);
@@ -59,8 +68,24 @@ const corsOptions: cors.CorsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
 };
+
+// Apply CORS middleware (single use)
+app.use(cors(corsOptions));
+
+// Force explicit response for ALL preflight (OPTIONS) requests
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(String(origin).replace(/\/$/, ''))) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  return res.sendStatus(200);
+});
+// --- END CORS BLOCK ---
 // --- UPDATED CORS BLOCK END ---
 
 const corsOptions: cors.CorsOptions = {
