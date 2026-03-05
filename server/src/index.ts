@@ -1,6 +1,4 @@
-import adminRoutes from './routes/admin';
 
-app.use('/admin', adminRoutes);
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
