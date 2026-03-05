@@ -17,10 +17,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.auth.me()
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    let mounted = true;
+    const token = localStorage.getItem('rabbit_token');
+    if (!token) {
+      // No token — don't call /auth/me, just mark loading false
+      setLoading(false);
+      return;
+    }
+
+    let retries = 0;
+    const maxRetries = 3;
+
+    const fetchMe = async () => {
+      try {
+        const data = await api.auth.me();
+        if (!mounted) return;
+        setUser(data);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // Handle 429 by retrying with exponential backoff
+        if (msg.includes('Too Many Requests') && retries < maxRetries) {
+          retries += 1;
+          const backoffMs = Math.pow(2, retries) * 500; // 1s, 2s, 4s approx
+          setTimeout(fetchMe, backoffMs);
+          return;
+        }
+        // On other errors or exhausted retries, clear token and mark user null
+        if (!mounted) return;
+        setUser(null);
+        clearToken();
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    fetchMe();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
