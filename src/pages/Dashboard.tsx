@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { api, type Investment, type RaffleTicket, type Withdrawal } from '../lib/api';
+import { api, type Investment, type RaffleTicket, type Withdrawal } from '../lib/client';
 
 const Dashboard: React.FC = () => {
   const { user, loading, logout } = useAuth();
