@@ -86,38 +86,6 @@ app.options('*', (req, res) => {
   return res.sendStatus(200);
 });
 // --- END CORS BLOCK ---
-// --- UPDATED CORS BLOCK END ---
-
-const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    // This will help us debug in Render logs if the URL still doesn't match
-    console.error(`CORS Blocked: Request from ${origin} is not in allowed list.`);
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  optionsSuccessStatus: 200
-};
-
-// Apply standard CORS middleware
-app.use(cors(corsOptions));
-
-// Force explicit response for ALL preflight (OPTIONS) requests
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  return res.sendStatus(200);
-});
-// --- UPDATED CORS BLOCK END ---
 
 app.use(express.json());
 
