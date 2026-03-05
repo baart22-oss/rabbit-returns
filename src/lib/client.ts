@@ -23,20 +23,43 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
 
   const url = buildUrl(path);
-  const res = await fetch(url, { ...options, headers });
 
-  if (res.status === 401) {
-    clearToken();
-    window.location.href = '/auth';
-    throw new Error('Unauthorized');
+  const maxRetries = 3;
+  let attempt = 0;
+
+  while (true) {
+    const res = await fetch(url, { ...options, headers });
+
+    if (res.status === 401) {
+      clearToken();
+      window.location.href = '/auth';
+      throw new Error('Unauthorized');
+    }
+
+    if (res.status === 429) {
+      // Only retry GET/HEAD requests (idempotent)
+      const method = (options.method ?? 'GET').toUpperCase();
+      if ((method === 'GET' || method === 'HEAD') && attempt < maxRetries) {
+        attempt += 1;
+        const retryAfter = res.headers.get('Retry-After');
+        const waitMs = retryAfter ? Number(retryAfter) * 1000 : Math.pow(2, attempt) * 500;
+        // small delay then retry
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+      // Do not retry other methods or if retries exhausted
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(body.error ?? 'Too Many Requests');
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(body.error ?? res.statusText);
+    }
+
+    // success
+    return res.json() as Promise<T>;
   }
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error((body as any).error ?? res.statusText);
-  }
-
-  return res.json() as Promise<T>;
 }
 
 // ---- Types ----
