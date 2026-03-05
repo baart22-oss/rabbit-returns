@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { api, type Investment } from '../lib/api';
+import { api, type Investment } from '../lib/client';
 
 const packages = [
   { name: 'Bunny Starter', amount: 200 },
