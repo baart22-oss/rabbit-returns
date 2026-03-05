@@ -1,4 +1,4 @@
-import { buildUrl } from './api';
+import { api as buildUrl } from './api'; // <-- wrong: importing `api` (client) as buildUrl
 
 const TOKEN_KEY = 'rabbit_token';
 
