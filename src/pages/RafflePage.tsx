@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { api, type RaffleTicket, type RaffleStatus } from '../lib/api';
+import { api, type RaffleTicket, type RaffleStatus } from '../lib/client';
 
 const RafflePage = () => {
   const { user, loading } = useAuth();
