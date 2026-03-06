@@ -1,6 +1,6 @@
 // Example login
 export async function login(email: string, password: string) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
@@ -16,7 +16,7 @@ export async function login(email: string, password: string) {
 // Example of protected call
 export async function getAdminData() {
   const token = localStorage.getItem('jwt_token');
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/users`, {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return await res.json();
