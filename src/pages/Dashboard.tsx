@@ -3,6 +3,18 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, type Investment, type RaffleTicket, type Withdrawal } from '../lib/client';
 
+Promise.all([
+  api.investments.list(),
+  api.raffle.tickets(),
+  api.withdrawals.list(),
+])
+  .then(([inv, tix, wd]) => {
+    setInvestments(Array.isArray(inv) ? inv : []);
+    setTickets(Array.isArray(tix) ? tix : []);
+    setWithdrawals(Array.isArray(wd) ? wd : []);
+  })
+  .catch(() => {})
+  .finally(() => setFetching(false));
 const Dashboard: React.FC = () => {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
