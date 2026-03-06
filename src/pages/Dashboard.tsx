@@ -43,7 +43,6 @@ const Dashboard: React.FC = () => {
 
   if (!user) return null;
 
-  // Defensive reduce/filter: fallback to 0 if investments array is unexpectedly empty
   const totalInvested = Array.isArray(investments) && investments.length > 0
     ? investments.reduce((s, i) => s + (i.amountRand ?? 0), 0)
     : 0;
@@ -105,7 +104,7 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Action Buttons */}
+        {/* Action Buttons: New Investment & Buy Raffle Ticket */}
         <div className="flex gap-4 mb-8">
           <button
             onClick={() => navigate('/invest')}
