@@ -1,4 +1,5 @@
-
+import authRouter from './routes/auth';
+app.use('/api/auth', authRouter);
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
