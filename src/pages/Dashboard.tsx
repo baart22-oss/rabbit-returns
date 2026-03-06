@@ -3,18 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, type Investment, type RaffleTicket, type Withdrawal } from '../lib/client';
 
-Promise.all([
-  api.investments.list(),
-  api.raffle.tickets(),
-  api.withdrawals.list(),
-])
-  .then(([inv, tix, wd]) => {
-    setInvestments(Array.isArray(inv) ? inv : []);
-    setTickets(Array.isArray(tix) ? tix : []);
-    setWithdrawals(Array.isArray(wd) ? wd : []);
-  })
-  .catch(() => {})
-  .finally(() => setFetching(false));
 const Dashboard: React.FC = () => {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
@@ -37,11 +25,15 @@ const Dashboard: React.FC = () => {
       api.withdrawals.list(),
     ])
       .then(([inv, tix, wd]) => {
-        setInvestments(inv);
-        setTickets(tix);
-        setWithdrawals(wd);
+        setInvestments(Array.isArray(inv) ? inv : []);
+        setTickets(Array.isArray(tix) ? tix : []);
+        setWithdrawals(Array.isArray(wd) ? wd : []);
       })
-      .catch(() => {})
+      .catch(() => {
+        setInvestments([]);
+        setTickets([]);
+        setWithdrawals([]);
+      })
       .finally(() => setFetching(false));
   }, [user]);
 
@@ -51,9 +43,16 @@ const Dashboard: React.FC = () => {
 
   if (!user) return null;
 
-  const totalInvested = investments.reduce((s, i) => s + i.amountRand, 0);
-  const totalEarned = investments.reduce((s, i) => s + i.totalEarned, 0);
-  const activeCount = investments.filter((i) => i.status === 'active').length;
+  // Defensive reduce/filter: fallback to 0 if investments array is unexpectedly empty
+  const totalInvested = Array.isArray(investments) && investments.length > 0
+    ? investments.reduce((s, i) => s + (i.amountRand ?? 0), 0)
+    : 0;
+  const totalEarned = Array.isArray(investments) && investments.length > 0
+    ? investments.reduce((s, i) => s + (i.totalEarned ?? 0), 0)
+    : 0;
+  const activeCount = Array.isArray(investments)
+    ? investments.filter((i) => i.status === 'active').length
+    : 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -92,7 +91,7 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="bg-white rounded-xl shadow p-5">
             <p className="text-sm text-gray-500 mb-1">Raffle Tickets</p>
-            <p className="text-2xl font-bold text-gray-800">{tickets.length}</p>
+            <p className="text-2xl font-bold text-gray-800">{Array.isArray(tickets) ? tickets.length : 0}</p>
           </div>
         </div>
 
@@ -127,7 +126,7 @@ const Dashboard: React.FC = () => {
           <div className="px-6 py-4 border-b">
             <h2 className="text-lg font-semibold text-gray-800">My Investments</h2>
           </div>
-          {investments.length === 0 ? (
+          {Array.isArray(investments) && investments.length === 0 ? (
             <p className="text-center text-gray-400 py-8">No investments yet.</p>
           ) : (
             <table className="w-full text-sm">
@@ -142,10 +141,10 @@ const Dashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {investments.map((inv) => (
+                {Array.isArray(investments) && investments.map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{inv.packageName}</td>
-                    <td className="px-4 py-3">R{inv.amountRand.toLocaleString()}</td>
+                    <td className="px-4 py-3">R{(inv.amountRand ?? 0).toLocaleString()}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         inv.status === 'active' ? 'bg-green-100 text-green-700' :
@@ -162,7 +161,7 @@ const Dashboard: React.FC = () => {
                     <td className="px-4 py-3 text-gray-500">
                       {inv.maturesAt ? new Date(inv.maturesAt).toLocaleDateString() : '—'}
                     </td>
-                    <td className="px-4 py-3 text-green-600 font-medium">R{inv.totalEarned.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-green-600 font-medium">R{(inv.totalEarned ?? 0).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -171,7 +170,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Withdrawals */}
-        {withdrawals.length > 0 && (
+        {Array.isArray(withdrawals) && withdrawals.length > 0 && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
             <div className="px-6 py-4 border-b">
               <h2 className="text-lg font-semibold text-gray-800">Withdrawal Requests</h2>
@@ -187,7 +186,7 @@ const Dashboard: React.FC = () => {
               <tbody className="divide-y divide-gray-100">
                 {withdrawals.map((wd) => (
                   <tr key={wd.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">R{wd.amountRand.toLocaleString()}</td>
+                    <td className="px-4 py-3 font-medium">R{(wd.amountRand ?? 0).toLocaleString()}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         wd.status === 'paid' ? 'bg-green-100 text-green-700' :
@@ -198,7 +197,7 @@ const Dashboard: React.FC = () => {
                         {wd.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{new Date(wd.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-gray-500">{wd.createdAt ? new Date(wd.createdAt).toLocaleDateString() : '—'}</td>
                   </tr>
                 ))}
               </tbody>
