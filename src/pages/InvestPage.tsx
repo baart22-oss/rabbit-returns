@@ -3,6 +3,34 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, type Investment } from '../lib/client';
 
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!selected) return;
+  setError('');
+  setSubmitting(true);
+  try {
+    const inv = await api.investments.create({
+      packageName: selected.name,
+      amountRand: selected.amount,
+      paymentReference: reference || undefined,
+    });
+    if (!inv) {
+      setError('Investment could not be created.');
+      setSubmitting(false);
+      return;
+    }
+    setCreatedInvestment(inv);
+    if (file) {
+      await api.investments.uploadProof(inv.id, file, reference || undefined);
+    }
+    setSuccess(true);
+    setSelected(null);
+  } catch (err: unknown) {
+    setError(err instanceof Error ? err.message : 'Something went wrong.');
+  } finally {
+    setSubmitting(false);
+  }
+};
 const packages = [
   { name: 'Bunny Starter', amount: 200 },
   { name: 'Rabbit Runner', amount: 500 },
