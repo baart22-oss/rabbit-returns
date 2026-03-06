@@ -1,3 +1,18 @@
+router.post('/admin-login', async (req, res) => {
+  const { adminSecretKey } = req.body;
+
+  if (!adminSecretKey) {
+    return res.status(400).json({ error: 'adminSecretKey is required' });
+  }
+
+  if (adminSecretKey !== process.env.API_SECRET_KEY) {
+    return res.status(401).json({ error: 'Invalid admin secret key' });
+  }
+
+  // Sign a token for the admin, you can customize payload as needed
+  const token = signToken({ id: 'admin', email: 'admin@example.com', role: 'admin' });
+  return res.json({ token, user: { id: 'admin', email: 'admin@example.com', role: 'admin' } });
+});
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
