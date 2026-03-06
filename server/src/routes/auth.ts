@@ -9,6 +9,10 @@ router.post('/admin-login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid admin secret key' });
   }
 
+  const token = signToken({ id: 'admin', email: 'admin@example.com', role: 'admin' });
+  return res.json({ token, user: { id: 'admin', email: 'admin@example.com', role: 'admin' } });
+});
+
   // Sign a token for the admin, you can customize payload as needed
   const token = signToken({ id: 'admin', email: 'admin@example.com', role: 'admin' });
   return res.json({ token, user: { id: 'admin', email: 'admin@example.com', role: 'admin' } });
