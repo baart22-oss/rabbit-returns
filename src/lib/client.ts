@@ -1,6 +1,3 @@
-// unified client helpers for the frontend (auth + admin + typed exports)
-// Replace existing src/lib/client.ts with this content.
-
 import { buildUrl } from './api';
 
 /**
@@ -11,9 +8,7 @@ const TOKEN_KEY = 'rabbit_token';
 export function setToken(token: string) {
   try {
     localStorage.setItem(TOKEN_KEY, token);
-  } catch {
-    // ignore storage errors (e.g., SSR or private mode)
-  }
+  } catch {}
 }
 
 export function clearToken() {
@@ -48,7 +43,6 @@ async function handleResponse(res: Response) {
 
 /**
  * Minimal exported types used across the frontend.
- * Expand these as needed to match your backend shape.
  */
 export type User = {
   id: string;
@@ -56,13 +50,17 @@ export type User = {
   role?: string;
   fullName?: string;
   createdAt?: string;
+  profile?: { referralCode?: string };
 };
 
 export type Investment = {
   id: string;
+  packageName?: string;
   amountRand: number;
   totalEarned: number;
   status: string;
+  startedAt?: string;
+  maturesAt?: string;
   createdAt?: string;
 };
 
@@ -89,8 +87,6 @@ export type DashboardStats = {
 
 /**
  * Public client API expected by the app.
- * - auth: login/signup/me (stores/reads token via setToken/clearToken)
- * - admin: admin endpoints (keeps previous admin methods)
  */
 export const api = {
   auth: {
@@ -101,7 +97,6 @@ export const api = {
         body: JSON.stringify({ email, password }),
       });
       const data = await handleResponse(res);
-      // store token if present
       if (data?.token) setToken(data.token);
       return data; // expected { token, user }
     },
@@ -123,8 +118,6 @@ export const api = {
       clearToken();
     },
   },
-export const api = {
-  // ... auth and admin as you have
 
   investments: {
     list: async () => {
@@ -159,9 +152,6 @@ export const api = {
     },
   },
 
-  // ... admin as you have
-};
-  
   admin: {
     dashboard: () => fetch(buildUrl('/admin/dashboard'), { headers: authHeaders() }).then(handleResponse),
     investments: () => fetch(buildUrl('/admin/investments'), { headers: authHeaders() }).then(handleResponse),
