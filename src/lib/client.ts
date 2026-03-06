@@ -123,7 +123,45 @@ export const api = {
       clearToken();
     },
   },
+export const api = {
+  // ... auth and admin as you have
 
+  investments: {
+    list: async () => {
+      const res = await fetch(buildUrl('/investments'), { headers: authHeaders() });
+      return handleResponse(res);
+    },
+    create: async ({ packageName, amountRand, paymentReference }) => {
+      const res = await fetch(buildUrl('/investments'), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ packageName, amountRand, paymentReference }),
+      });
+      return handleResponse(res);
+    },
+    uploadProof: async (id: string, file: File, reference?: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (reference) formData.append('paymentReference', reference);
+
+      const res = await fetch(buildUrl(`/investments/${id}/proof`), {
+        method: 'POST',
+        headers: {
+          Authorization: getToken() ? `Bearer ${getToken()}` : '',
+        },
+        body: formData,
+      });
+      return handleResponse(res);
+    },
+    get: async (id: string) => {
+      const res = await fetch(buildUrl(`/investments/${id}`), { headers: authHeaders() });
+      return handleResponse(res);
+    },
+  },
+
+  // ... admin as you have
+};
+  
   admin: {
     dashboard: () => fetch(buildUrl('/admin/dashboard'), { headers: authHeaders() }).then(handleResponse),
     investments: () => fetch(buildUrl('/admin/investments'), { headers: authHeaders() }).then(handleResponse),
