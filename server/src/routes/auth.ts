@@ -1,22 +1,3 @@
-router.post('/admin-login', async (req, res) => {
-  const { adminSecretKey } = req.body;
-
-  if (!adminSecretKey) {
-    return res.status(400).json({ error: 'adminSecretKey is required' });
-  }
-
-  if (adminSecretKey !== process.env.API_SECRET_KEY) {
-    return res.status(401).json({ error: 'Invalid admin secret key' });
-  }
-
-  const token = signToken({ id: 'admin', email: 'admin@example.com', role: 'admin' });
-  return res.json({ token, user: { id: 'admin', email: 'admin@example.com', role: 'admin' } });
-});
-
-  // Sign a token for the admin, you can customize payload as needed
-  const token = signToken({ id: 'admin', email: 'admin@example.com', role: 'admin' });
-  return res.json({ token, user: { id: 'admin', email: 'admin@example.com', role: 'admin' } });
-});
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -37,6 +18,23 @@ function signToken(payload: { id: string; email: string; role: string }): string
   return jwt.sign(payload, secret, { expiresIn: '7d' });
 }
 
+// === ADMIN LOGIN ===
+router.post('/admin-login', async (req, res) => {
+  const { adminSecretKey } = req.body;
+
+  if (!adminSecretKey) {
+    return res.status(400).json({ error: 'adminSecretKey is required' });
+  }
+
+  if (adminSecretKey !== process.env.API_SECRET_KEY) {
+    return res.status(401).json({ error: 'Invalid admin secret key' });
+  }
+
+  const token = signToken({ id: 'admin', email: 'admin@example.com', role: 'admin' });
+  return res.json({ token, user: { id: 'admin', email: 'admin@example.com', role: 'admin' } });
+});
+
+// === SIGNUP ===
 router.post('/signup', async (req, res) => {
   try {
     const { email, password, fullName, referralCode: referredByCode } = req.body;
@@ -82,6 +80,7 @@ router.post('/signup', async (req, res) => {
   }
 });
 
+// === LOGIN ===
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -107,6 +106,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// === ME ===
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
