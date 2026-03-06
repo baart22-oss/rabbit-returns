@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../prisma/client';
 import { requireAuth } from '../middleware/auth';
-import { uploadProof } from '../middleware/upload';
+import multer from 'multer';
 import { sendAdminNewProof } from '../services/email';
 
 const router = Router();
@@ -14,6 +14,18 @@ const VALID_PACKAGES: Record<string, number> = {
   'Burrow Boss': 5000,
   'Colony King': 10000,
 };
+
+// Multer config: store files in 'uploads/' directory; you may change dest as needed
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/'); // Make sure this path exists in your project!
+  },
+  filename: function (req, file, cb) {
+    // Prevent name clashes; add timestamp + original name
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+const uploadProof = multer({ storage }).single('file');
 
 router.get('/', requireAuth, async (req, res) => {
   try {
