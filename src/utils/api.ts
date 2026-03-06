@@ -1,18 +1,18 @@
-router.post('/admin-login', async (req, res) => {
-  const { adminSecretKey } = req.body;
-
-  if (!adminSecretKey) {
-    return res.status(400).json({ error: 'adminSecretKey is required' });
+// Admin login API call function for frontend
+export async function adminLogin() {
+  const adminSecretKey = import.meta.env.VITE_API_SECRET_KEY;
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/admin-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ adminSecretKey }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    localStorage.setItem('jwt_token', data.token); // Save admin token
   }
+  return data;
+}
 
-  if (adminSecretKey !== process.env.API_SECRET_KEY) {
-    return res.status(401).json({ error: 'Invalid admin secret key' });
-  }
-
-  // Sign a token for the admin, you can customize payload as needed
-  const token = signToken({ id: 'admin', email: 'admin@example.com', role: 'admin' });
-  return res.json({ token, user: { id: 'admin', email: 'admin@example.com', role: 'admin' } });
-});
 // Example login
 export async function login(email: string, password: string) {
   const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
@@ -22,8 +22,7 @@ export async function login(email: string, password: string) {
   });
   const data = await res.json();
   if (res.ok) {
-    // Save token to localStorage/sessionStorage
-    localStorage.setItem('jwt_token', data.token); // data.token should be returned by backend
+    localStorage.setItem('jwt_token', data.token);
   }
   return data;
 }
