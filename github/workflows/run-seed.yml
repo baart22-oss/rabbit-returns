@@ -1,0 +1,32 @@
+name: Run DB seed (manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        working-directory: server
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Run seed
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          PGSSLMODE: require
+        run: |
+          echo "Running seed..."
+          npm run db:seed
