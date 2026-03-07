@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 
@@ -27,13 +27,13 @@ app.use('/api/admin', adminRouter);         // Admin-specific routes
 // Optional: static files/proof uploads
 app.use('/uploads', express.static('uploads'));
 
-// Fallback 404 handler (optional)
-app.use((req, res, next) => {
+// Fallback 404 handler (typed)
+app.use((req: Request, res: Response, next: NextFunction) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Global error handler (optional, for debugging)
-app.use((err, req, res, next) => {
+// Global error handler (typed)
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error("Global error:", err);
   res.status(500).json({ error: 'Internal server error' });
 });
@@ -43,3 +43,5 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`API server listening on port ${PORT}`);
 });
+
+export default app;
