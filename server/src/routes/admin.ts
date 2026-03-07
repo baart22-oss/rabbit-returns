@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import prisma from '../prisma/client';
 import { requireAdmin } from '../middleware/auth';
 import {
@@ -18,7 +18,7 @@ const REFERRAL_LEVELS = [
   { pct: 0.02, level: 3 },
 ];
 
-router.get('/users', requireAdmin, async (_req, res) => {
+router.get('/users', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       include: { profile: true },
@@ -31,7 +31,7 @@ router.get('/users', requireAdmin, async (_req, res) => {
   }
 });
 
-router.patch('/users/:id/promote', requireAdmin, async (req, res) => {
+router.patch('/users/:id/promote', requireAdmin, async (req: Request, res: Response) => {
   try {
     const user = await prisma.user.update({
       where: { id: req.params.id },
@@ -44,7 +44,7 @@ router.patch('/users/:id/promote', requireAdmin, async (req, res) => {
   }
 });
 
-router.get('/investments', requireAdmin, async (_req, res) => {
+router.get('/investments', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const investments = await prisma.investment.findMany({
       include: { user: { include: { profile: true } } },
@@ -57,7 +57,17 @@ router.get('/investments', requireAdmin, async (_req, res) => {
   }
 });
 
-router.patch('/investments/:id', requireAdmin, async (req, res) => {
+/**
+ * PATCH /api/admin/investments/:id
+ * Body: { status: 'active' | 'rejected' | 'pending', adminNote?: string }
+ *
+ * When activating we:
+ *  - compute startedAt, maturesAt
+ *  - create referral commissions for referral chain
+ *  - update investment status/start/matures
+ * All done in a transaction to avoid partial state.
+ */
+router.patch('/investments/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { status, adminNote } = req.body;
 
@@ -69,59 +79,100 @@ router.patch('/investments/:id', requireAdmin, async (req, res) => {
     if (!investment) return res.status(404).json({ error: 'Investment not found' });
 
     const now = new Date();
-    const data: Record<string, unknown> = { status };
-    if (adminNote !== undefined) data.adminNote = adminNote;
 
     if (status === 'active') {
-      data.startedAt = now;
-      data.maturesAt = new Date(now.getTime() + MATURITY_DAYS * 24 * 60 * 60 * 1000);
+      const startedAt = now;
+      const maturesAt = new Date(now.getTime() + MATURITY_DAYS * 24 * 60 * 60 * 1000);
 
-      // Generate referral commissions
+      // Build commission create operations
+      const commissionCreates: Array<Promise<any>> = [];
       let currentUserId: string | null | undefined = investment.user.profile?.referredBy;
-      for (const { pct, level } of REFERRAL_LEVELS) {
-        if (!currentUserId) break;
-        const referrer = await prisma.profile.findFirst({ where: { userId: currentUserId } });
-        if (!referrer) break;
 
-        await prisma.referralCommission.create({
-          data: {
-            investmentId: investment.id,
-            earnerId: currentUserId,
-            referrerId: investment.userId,
-            level,
-            amountRand: investment.amountRand * pct,
-          },
-        });
+      while (currentUserId) {
+        // find the profile matching the currentUserId
+        const refProfile = await prisma.profile.findUnique({ where: { userId: currentUserId } });
+        if (!refProfile) break;
 
-        currentUserId = referrer.referredBy;
+        // determine level based on length of commissionCreates
+        const levelIndex = commissionCreates.length;
+        if (levelIndex >= REFERRAL_LEVELS.length) break;
+
+        const { pct, level } = REFERRAL_LEVELS[levelIndex];
+        const amountRand = investment.amountRand * pct;
+
+        commissionCreates.push(
+          prisma.referralCommission.create({
+            data: {
+              investmentId: investment.id,
+              earnerId: currentUserId,
+              referrerId: investment.userId,
+              level,
+              amountRand,
+            },
+          })
+        );
+
+        currentUserId = refProfile.referredBy;
       }
 
-      await sendUserInvestmentApproved(
-        investment.user.email,
-        investment.packageName,
-        investment.amountRand
-      ).catch(console.error);
+      try {
+        // Transaction: create commissions then update investment
+        const txResults = await prisma.$transaction([
+          ...commissionCreates,
+          prisma.investment.update({
+            where: { id: investment.id },
+            data: {
+              status: 'active',
+              startedAt,
+              maturesAt,
+              adminNote: adminNote ?? undefined,
+            },
+          }),
+        ]);
+
+        const updatedInvestment = txResults[txResults.length - 1];
+
+        // Notify user outside transaction
+        await sendUserInvestmentApproved(
+          investment.user.email,
+          investment.packageName,
+          investment.amountRand
+        ).catch(console.error);
+
+        return res.json(updatedInvestment);
+      } catch (err) {
+        console.error('Error activating investment (transaction):', err);
+        return res.status(500).json({ error: 'Failed to activate investment' });
+      }
     } else if (status === 'rejected') {
+      // handle rejection
+      const updated = await prisma.investment.update({
+        where: { id: investment.id },
+        data: { status: 'rejected', adminNote: adminNote ?? undefined },
+      });
+
       await sendUserInvestmentRejected(
         investment.user.email,
         investment.packageName,
         adminNote
       ).catch(console.error);
+
+      return res.json(updated);
+    } else {
+      // generic update (e.g., set pending)
+      const updated = await prisma.investment.update({
+        where: { id: investment.id },
+        data: { status: status ?? investment.status, adminNote: adminNote ?? undefined },
+      });
+      return res.json(updated);
     }
-
-    const updated = await prisma.investment.update({
-      where: { id: req.params.id },
-      data,
-    });
-
-    return res.json(updated);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/withdrawals', requireAdmin, async (_req, res) => {
+router.get('/withdrawals', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const withdrawals = await prisma.withdrawal.findMany({
       include: { user: { include: { profile: true } } },
@@ -134,7 +185,7 @@ router.get('/withdrawals', requireAdmin, async (_req, res) => {
   }
 });
 
-router.patch('/withdrawals/:id', requireAdmin, async (req, res) => {
+router.patch('/withdrawals/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { status, adminNote } = req.body;
 
@@ -164,7 +215,8 @@ router.patch('/withdrawals/:id', requireAdmin, async (req, res) => {
   }
 });
 
-router.get('/raffle', requireAdmin, async (_req, res) => {
+// Raffle endpoints and dashboard left unchanged...
+router.get('/raffle', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const tickets = await prisma.raffleTicket.findMany({
       include: { user: { include: { profile: true } } },
@@ -177,7 +229,7 @@ router.get('/raffle', requireAdmin, async (_req, res) => {
   }
 });
 
-router.patch('/raffle/:id', requireAdmin, async (req, res) => {
+router.patch('/raffle/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
 
@@ -206,7 +258,7 @@ router.patch('/raffle/:id', requireAdmin, async (req, res) => {
   }
 });
 
-router.get('/dashboard', requireAdmin, async (_req, res) => {
+router.get('/dashboard', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const [
       totalUsers,
