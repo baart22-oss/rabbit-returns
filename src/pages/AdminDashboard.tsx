@@ -1,17 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { api, type Investment, type Withdrawal, type RaffleTicket, type User, type DashboardStats } from '../lib/client';
-import { toast } from 'sonner';
+import { api } from '../lib/client';
 
-export default function AdminDashboard() {
+const AdminDashboard = () => {
   const { isAdmin, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'investments' | 'withdrawals' | 'raffle' | 'users'>('overview');
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [investments, setInvestments] = useState<Investment[]>([]);
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [raffleTickets, setRaffleTickets] = useState<RaffleTicket[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [stats, setStats] = useState(null);
+  const [investments, setInvestments] = useState([]);
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [raffleTickets, setRaffleTickets] = useState([]);
+  const [users, setUsers] = useState([]);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
@@ -25,74 +24,59 @@ export default function AdminDashboard() {
     ])
       .then(([s, inv, wd, rt, u]) => {
         setStats(s);
-        setInvestments(inv);
-        setWithdrawals(wd);
-        setRaffleTickets(rt);
-        setUsers(u);
+        setInvestments(Array.isArray(inv) ? inv : []);
+        setWithdrawals(Array.isArray(wd) ? wd : []);
+        setRaffleTickets(Array.isArray(rt) ? rt : []);
+        setUsers(Array.isArray(u) ? u : []);
       })
-      .catch(() => toast.error('Failed to load admin data'))
+      .catch(() => {})
       .finally(() => setFetching(false));
   }, [isAdmin]);
 
-  const updateInvestment = async (id: string, status: string) => {
+  const updateInvestment = async (id, status) => {
     try {
       const updated = await api.admin.updateInvestment(id, { status });
-      setInvestments((prev) => prev.map((i) => (i.id === id ? updated : i)));
-      toast.success('Investment updated');
-    } catch {
-      toast.error('Update failed');
-    }
+      setInvestments(prev => prev.map(i => (i.id === id ? updated : i)));
+    } catch {}
   };
 
-  const updateWithdrawal = async (id: string, status: string, adminNote?: string) => {
+  const updateWithdrawal = async (id, status, adminNote) => {
     try {
       const updated = await api.admin.updateWithdrawal(id, { status, adminNote });
-      setWithdrawals((prev) => prev.map((w) => (w.id === id ? updated : w)));
-      toast.success('Withdrawal updated');
-    } catch {
-      toast.error('Update failed');
-    }
+      setWithdrawals(prev => prev.map(w => (w.id === id ? updated : w)));
+    } catch {}
   };
 
-  const updateRaffle = async (id: string, status: string) => {
+  const updateRaffle = async (id, status) => {
     try {
       const updated = await api.admin.updateRaffle(id, { status });
-      setRaffleTickets((prev) => prev.map((t) => (t.id === id ? updated : t)));
-      toast.success('Raffle ticket updated');
-    } catch {
-      toast.error('Update failed');
-    }
+      setRaffleTickets(prev => prev.map(t => (t.id === id ? updated : t)));
+    } catch {}
   };
 
-  const promoteUser = async (id: string) => {
+  const promoteUser = async (id) => {
     try {
       await api.admin.promoteUser(id);
-      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role: 'admin' } : u)));
-      toast.success('User promoted to admin');
-    } catch {
-      toast.error('Promote failed');
-    }
+      setUsers(prev => prev.map(u => (u.id === id ? { ...u, role: 'admin' } : u)));
+    } catch {}
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
   if (!isAdmin) return <Navigate to="/dashboard" />;
   if (fetching) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading admin data…</div>;
 
-  const tabs = ['overview', 'investments', 'withdrawals', 'raffle', 'users'] as const;
+  const tabs = ['overview', 'investments', 'withdrawals', 'raffle', 'users'];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navbar */}
       <nav className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="text-xl font-bold text-green-700">🐰 Rabbit Returns</Link>
           <span className="text-sm text-gray-500">Admin Dashboard</span>
         </div>
       </nav>
-
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Admin Dashboard</h1>
-
         {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {tabs.map((tab) => (
@@ -106,20 +90,16 @@ export default function AdminDashboard() {
               }`}
             >
               {tab}
-              {tab === 'investments' && stats?.pendingInvestments ? ` (${stats.pendingInvestments})` : ''}
-              {tab === 'withdrawals' && stats?.pendingWithdrawals ? ` (${stats.pendingWithdrawals})` : ''}
-              {tab === 'raffle' && stats?.pendingRaffle ? ` (${stats.pendingRaffle})` : ''}
             </button>
           ))}
         </div>
-
         {/* Overview */}
         {activeTab === 'overview' && stats && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { label: 'Total Users', value: stats.totalUsers },
               { label: 'Total Investments', value: stats.totalInvestments },
-              { label: 'Total Withdrawn', value: `R${stats.totalWithdrawn.toLocaleString()}` },
+              { label: 'Total Withdrawn', value: `R${stats.totalWithdrawn}` },
               { label: 'Raffle Tickets', value: stats.totalRaffleTickets },
               { label: 'Pending Investments', value: stats.pendingInvestments },
               { label: 'Pending Withdrawals', value: stats.pendingWithdrawals },
@@ -132,7 +112,6 @@ export default function AdminDashboard() {
             ))}
           </div>
         )}
-
         {/* Investments */}
         {activeTab === 'investments' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -151,7 +130,7 @@ export default function AdminDashboard() {
                 {investments.map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{inv.packageName}</td>
-                    <td className="px-4 py-3">R{inv.amountRand.toLocaleString()}</td>
+                    <td className="px-4 py-3">R{inv.amountRand}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         inv.status === 'active' ? 'bg-green-100 text-green-700' :
@@ -169,7 +148,7 @@ export default function AdminDashboard() {
                     <td className="px-4 py-3">
                       <select
                         value={inv.status}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateInvestment(inv.id, e.target.value)}
+                        onChange={(e) => updateInvestment(inv.id, e.target.value)}
                         className="border border-gray-300 rounded px-2 py-1 text-sm"
                       >
                         <option value="pending">pending</option>
@@ -185,7 +164,6 @@ export default function AdminDashboard() {
             {investments.length === 0 && <p className="text-center text-gray-400 py-8">No investments.</p>}
           </div>
         )}
-
         {/* Withdrawals */}
         {activeTab === 'withdrawals' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -202,7 +180,7 @@ export default function AdminDashboard() {
               <tbody className="divide-y divide-gray-100">
                 {withdrawals.map((wd) => (
                   <tr key={wd.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">R{wd.amountRand.toLocaleString()}</td>
+                    <td className="px-4 py-3 font-medium">R{wd.amountRand}</td>
                     <td className="px-4 py-3 text-gray-500">{wd.bankName} · {wd.accountNumber}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
@@ -216,7 +194,7 @@ export default function AdminDashboard() {
                     <td className="px-4 py-3">
                       <select
                         value={wd.status}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateWithdrawal(wd.id, e.target.value)}
+                        onChange={(e) => updateWithdrawal(wd.id, e.target.value)}
                         className="border border-gray-300 rounded px-2 py-1 text-sm"
                       >
                         <option value="pending">pending</option>
@@ -232,7 +210,6 @@ export default function AdminDashboard() {
             {withdrawals.length === 0 && <p className="text-center text-gray-400 py-8">No withdrawals.</p>}
           </div>
         )}
-
         {/* Raffle */}
         {activeTab === 'raffle' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -249,7 +226,7 @@ export default function AdminDashboard() {
               <tbody className="divide-y divide-gray-100">
                 {raffleTickets.map((t) => (
                   <tr key={t.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs">{t.id.slice(0, 12)}…</td>
+                    <td className="px-4 py-3 font-mono text-xs">{String(t.id).slice(0, 12)}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         t.status === 'active' ? 'bg-green-100 text-green-700' :
@@ -266,7 +243,7 @@ export default function AdminDashboard() {
                     <td className="px-4 py-3">
                       <select
                         value={t.status}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateRaffle(t.id, e.target.value)}
+                        onChange={(e) => updateRaffle(t.id, e.target.value)}
                         className="border border-gray-300 rounded px-2 py-1 text-sm"
                       >
                         <option value="pending">pending</option>
@@ -281,7 +258,6 @@ export default function AdminDashboard() {
             {raffleTickets.length === 0 && <p className="text-center text-gray-400 py-8">No raffle tickets.</p>}
           </div>
         )}
-
         {/* Users */}
         {activeTab === 'users' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -303,7 +279,7 @@ export default function AdminDashboard() {
                         u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
                       }`}>{u.role}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{u.profile?.referralCode ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{u.profile?.referralCode ?? '��'}</td>
                     <td className="px-4 py-3">
                       {u.role !== 'admin' && (
                         <button
@@ -324,4 +300,6 @@ export default function AdminDashboard() {
       </div>
     </div>
   );
-}
+};
+
+export default AdminDashboard;
