@@ -1,91 +1,38 @@
-import { Router } from "express";
-const router = Router();
-export default router;
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import prisma from '../prisma/client';
-import { requireAuth } from '../middleware/auth';
-import { uploadProof } from '../middleware/upload';
-import { sendAdminNewProof } from '../services/email';
 
 const router = Router();
 
-const MAX_TICKETS = 500;
-const TICKET_PRICE = 50;
-
-router.get('/status', async (_req, res) => {
+// GET: list raffles or tickets
+router.get('/', async (req: Request, res: Response) => {
   try {
-    const sold = await prisma.raffleTicket.count({
-      where: { status: { in: ['active', 'pending'] } },
-    });
-    return res.json({ sold, max: MAX_TICKETS, price: TICKET_PRICE });
+    const raffles = await prisma.raffle.findMany({ orderBy: { createdAt: 'desc' } });
+    return res.json(raffles);
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Unable to fetch raffles' });
   }
 });
 
-router.get('/tickets', requireAuth, async (req, res) => {
+// POST: purchase ticket (placeholder)
+router.post('/tickets', async (req: Request, res: Response) => {
   try {
-    const tickets = await prisma.raffleTicket.findMany({
-      where: { userId: req.user!.id },
-      orderBy: { createdAt: 'desc' },
-    });
-    return res.json(tickets);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
+    const { userId, raffleId, ticketCount } = req.body;
+    if (!userId || !raffleId) return res.status(400).json({ error: 'Missing userId or raffleId' });
 
-router.post('/tickets', requireAuth, async (req, res) => {
-  try {
-    const total = await prisma.raffleTicket.count({
-      where: { status: { in: ['active', 'pending'] } },
-    });
-
-    if (total >= MAX_TICKETS) {
-      return res.status(409).json({ error: 'All raffle tickets have been sold' });
-    }
-
-    const { paymentReference } = req.body;
-
-    const ticket = await prisma.raffleTicket.create({
+    // Placeholder ticket creation; adapt to your real logic
+    const ticket = await prisma.ticket.create({
       data: {
-        userId: req.user!.id,
-        status: 'pending',
-        paymentReference: paymentReference ?? null,
-      },
+        userId,
+        raffleId,
+        quantity: Number(ticketCount || 1)
+      }
     });
 
     return res.status(201).json(ticket);
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.post('/tickets/:id/proof', requireAuth, uploadProof, async (req, res) => {
-  try {
-    const ticket = await prisma.raffleTicket.findUnique({ where: { id: req.params.id } });
-    if (!ticket || ticket.userId !== req.user!.id) {
-      return res.status(404).json({ error: 'Ticket not found' });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const updated = await prisma.raffleTicket.update({
-      where: { id: req.params.id },
-      data: { proofOfPayment: req.file.filename },
-    });
-
-    await sendAdminNewProof('raffle', req.user!.id, req.params.id).catch(console.error);
-
-    return res.json(updated);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Unable to create ticket' });
   }
 });
 
