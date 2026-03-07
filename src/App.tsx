@@ -6,11 +6,9 @@ import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import InvestPage from './pages/InvestPage';
 import RafflePage from './pages/RafflePage';
+import WithdrawPage from './pages/WithdrawPage';
 import AdminDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
-import WithdrawPage from './pages/WithdrawPage';
-// ...
-<Route path="/withdraw" element={<WithdrawPage />} />
 
 function App() {
   return (
@@ -22,6 +20,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/invest" element={<InvestPage />} />
           <Route path="/raffle" element={<RafflePage />} />
+          <Route path="/withdraw" element={<WithdrawPage />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
