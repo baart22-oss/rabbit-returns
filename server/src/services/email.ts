@@ -16,16 +16,19 @@ const adminEmail = process.env.ADMIN_NOTIFY_EMAIL ?? '';
 export async function sendAdminNewProof(
   type: 'investment' | 'raffle',
   userId: string,
-  itemId: string
+  itemId: string,
+  filename?: string
 ): Promise<void> {
+  const fileLine = filename ? `\nFilename: ${filename}\nURL: /uploads/${filename}` : '';
   await transporter.sendMail({
     from,
     to: adminEmail,
     subject: `New proof of payment uploaded (${type})`,
-    text: `A new ${type} proof has been uploaded.\nUser ID: ${userId}\nItem ID: ${itemId}\n\nPlease log in to review.`,
+    text: `A new ${type} proof has been uploaded.\nUser ID: ${userId}\nItem ID: ${itemId}${fileLine}\n\nPlease log in to review.`,
   });
 }
 
+// ... other email functions unchanged
 export async function sendUserInvestmentApproved(
   email: string,
   packageName: string,
