@@ -2,10 +2,11 @@ import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 import prisma from './prisma/client';
 
-// Routers (ensure these files exist at server/src/routes/*.ts)
+// Routers (ensure these files exist at src/routes/*.ts)
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
 import bankingRouter from './routes/banking';
@@ -52,7 +53,7 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
 
 /**
  * Ensure admin user exists using environment variables.
- * Idempotent: if ADMIN_EMAIL exists the creation is skipped.
+ * This is idempotent: if ADMIN_EMAIL exists, it will not create a duplicate.
  */
 async function ensureAdminFromEnv(): Promise<void> {
   const email = process.env.ADMIN_EMAIL;
@@ -76,16 +77,20 @@ async function ensureAdminFromEnv(): Promise<void> {
       return;
     }
 
-    const hash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Generate referralCode (schema requires it for Profile)
+    const referralCode = `ADM${uuidv4().replace(/-/g, '').slice(0, 5).toUpperCase()}`;
 
     await prisma.user.create({
       data: {
         email,
-        passwordHash: hash,
+        passwordHash,
         role: 'admin',
         profile: {
           create: {
-            fullName
+            fullName,
+            referralCode
           }
         }
       }
@@ -94,6 +99,7 @@ async function ensureAdminFromEnv(): Promise<void> {
     console.log(`Admin user ${email} created from environment variables.`);
   } catch (err) {
     console.error('Error ensuring admin user from env:', err);
+    // Do not throw so server can still start
   }
 }
 
