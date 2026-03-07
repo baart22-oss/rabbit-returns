@@ -1,4 +1,3 @@
-import { adminLogin } from '../utils/api';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
@@ -14,7 +13,7 @@ const Auth = () => {
   const { login, signup } = useAuth();
   const navigate = useNavigate();
 
-  const submitHandler = async (e: React.FormEvent) => {
+  const submitHandler = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -25,8 +24,11 @@ const Auth = () => {
         await signup(email, password, fullName, referralCode || undefined);
       }
       navigate('/dashboard');
-    } catch (err: any) {
-      setError(err?.message || 'Something went wrong. Please try again.');
+    } catch (err) {
+      setError(
+        err?.message ||
+          (typeof err === 'string' ? err : 'Something went wrong. Please try again.')
+      );
     } finally {
       setLoading(false);
     }
