@@ -8,6 +8,9 @@ import InvestPage from './pages/InvestPage';
 import RafflePage from './pages/RafflePage';
 import AdminDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
+import WithdrawPage from './pages/WithdrawPage';
+// ...
+<Route path="/withdraw" element={<WithdrawPage />} />
 
 function App() {
   return (
