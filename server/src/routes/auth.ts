@@ -20,18 +20,52 @@ function signToken(payload: { id: string; email: string; role: string }): string
 
 // === ADMIN LOGIN ===
 router.post('/admin-login', async (req, res) => {
-  const { adminSecretKey } = req.body;
+  try {
+    const { email, password, adminSecretKey } = req.body;
 
-  if (!adminSecretKey) {
-    return res.status(400).json({ error: 'adminSecretKey is required' });
+    if (!email || !password || !adminSecretKey) {
+      return res.status(400).json({ error: "email, password and adminSecretKey are required" });
+    }
+
+    if (adminSecretKey !== process.env.API_SECRET_KEY) {
+      return res.status(401).json({ error: "Invalid admin secret key" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { profile: true }
+    });
+
+    if (!user || user.role !== "admin") {
+      return res.status(401).json({ error: "Admin not found" });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.passwordHash);
+
+    if (!validPassword) {
+      return res.status(401).json({ error: "Invalid password" });
+    }
+
+    const token = signToken({
+      id: user.id,
+      email: user.email,
+      role: user.role
+    });
+
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        profile: user.profile
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
   }
-
-  if (adminSecretKey !== process.env.API_SECRET_KEY) {
-    return res.status(401).json({ error: 'Invalid admin secret key' });
-  }
-
-  const token = signToken({ id: 'admin', email: 'admin@example.com', role: 'admin' });
-  return res.json({ token, user: { id: 'admin', email: 'admin@example.com', role: 'admin' } });
 });
 
 // === SIGNUP ===
