@@ -3,10 +3,12 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
+import path from 'path';
 
 import prisma from './prisma/client';
 
-// Routers (ensure these files exist at src/routes/*.ts)
+// Routers
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
 import bankingRouter from './routes/banking';
@@ -26,7 +28,45 @@ app.use(
   })
 );
 
-// Route registration
+// Ensure uploads directory exists and is writable
+const uploadsDir = path.join(process.cwd(), 'uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log('Created uploads directory at', uploadsDir);
+  }
+} catch (err) {
+  console.error('Failed to create uploads directory:', err);
+}
+
+// Serve uploaded files at /uploads/*
+app.use('/uploads', express.static(uploadsDir));
+
+// Fallback route that will serve files directly when frontend requests the bare filename
+// Example: frontend requests "/1772805370726-....jpeg" (no /uploads prefix).
+// This middleware will check uploads/ for the file and serve it if present.
+// It will not interfere with API routes (paths starting with /api) or other static paths.
+app.get('/:filename', (req: Request, res: Response, next: NextFunction) => {
+  const { filename } = req.params;
+
+  // Skip common prefixes so we don't accidentally capture API or other routes
+  if (!filename) return next();
+  if (filename.startsWith('api') || filename.startsWith('uploads') || filename.includes('/')) {
+    return next();
+  }
+
+  // Allow typical image/file extensions
+  const allowedExt = /\.(png|jpg|jpeg|gif|webp|pdf|txt)$/i;
+  if (!allowedExt.test(filename)) return next();
+
+  const filePath = path.join(uploadsDir, filename);
+  fs.access(filePath, fs.constants.R_OK, (err) => {
+    if (err) return next(); // file doesn't exist -> let other routes handle (404)
+    return res.sendFile(filePath);
+  });
+});
+
+// Route registration (API routes)
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/banking', bankingRouter);
