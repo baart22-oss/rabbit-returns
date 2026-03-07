@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../prisma/client';
 import { requireAdmin } from '../middleware/auth';
 import {
@@ -84,16 +85,14 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
       const startedAt = now;
       const maturesAt = new Date(now.getTime() + MATURITY_DAYS * 24 * 60 * 60 * 1000);
 
-      // Build commission create operations
-      const commissionCreates: Array<Promise<any>> = [];
+      // Use Prisma.PrismaPromise[] so typings match prisma.$transaction
+      const commissionCreates: Prisma.PrismaPromise<any>[] = [];
       let currentUserId: string | null | undefined = investment.user.profile?.referredBy;
 
       while (currentUserId) {
-        // find the profile matching the currentUserId
         const refProfile = await prisma.profile.findUnique({ where: { userId: currentUserId } });
         if (!refProfile) break;
 
-        // determine level based on length of commissionCreates
         const levelIndex = commissionCreates.length;
         if (levelIndex >= REFERRAL_LEVELS.length) break;
 
@@ -125,7 +124,7 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
               status: 'active',
               startedAt,
               maturesAt,
-              adminNote: adminNote ?? undefined,
+              // adminNote removed because Investment model doesn't define it
             },
           }),
         ]);
@@ -145,10 +144,10 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
         return res.status(500).json({ error: 'Failed to activate investment' });
       }
     } else if (status === 'rejected') {
-      // handle rejection
+      // handle rejection - update status only (no adminNote field on Investment)
       const updated = await prisma.investment.update({
         where: { id: investment.id },
-        data: { status: 'rejected', adminNote: adminNote ?? undefined },
+        data: { status: 'rejected' },
       });
 
       await sendUserInvestmentRejected(
@@ -162,7 +161,7 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
       // generic update (e.g., set pending)
       const updated = await prisma.investment.update({
         where: { id: investment.id },
-        data: { status: status ?? investment.status, adminNote: adminNote ?? undefined },
+        data: { status: status ?? investment.status },
       });
       return res.json(updated);
     }
@@ -215,7 +214,7 @@ router.patch('/withdrawals/:id', requireAdmin, async (req: Request, res: Respons
   }
 });
 
-// Raffle endpoints and dashboard left unchanged...
+// Raffle endpoints and dashboard unchanged...
 router.get('/raffle', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const tickets = await prisma.raffleTicket.findMany({
