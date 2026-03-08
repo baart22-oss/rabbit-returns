@@ -11,7 +11,10 @@ const Dashboard = () => {
   const [tickets, setTickets] = useState<any[]>([]);
   const [fetching, setFetching] = useState(true);
   const [balance, setBalance] = useState<{ investmentsSum: number; commissionsSum: number; totalBalance: number } | null>(null);
-  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const [banking, setBanking] = useState<any | null>(null);
+  const [bankLoading, setBankLoading] = useState(true);
+  const [eftDetails, setEftDetails] = useState<any | null>(null);
+  const [eftLoading, setEftLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) navigate('/auth');
@@ -38,41 +41,37 @@ const Dashboard = () => {
       .finally(() => setFetching(false));
   }, [user]);
 
-  if (loading || fetching) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
-  if (!user) return null;
+  useEffect(() => {
+    if (!user) return;
+    setBankLoading(true);
+    api.banking.get()
+      .then(b => setBanking(b || null))
+      .catch(err => {
+        // 404 means user has no saved banking — that's OK
+        console.info('No saved banking or failed to load', err);
+        setBanking(null);
+      })
+      .finally(() => setBankLoading(false));
 
-  // Build referral info (use the referralCode from user.profile if available)
-  const referralCode = user?.profile?.referralCode ?? '';
-  const referralQueryParam = referralCode ? `ref=${encodeURIComponent(referralCode)}` : '';
-  const referralLink = `${window.location.origin}/auth?${referralQueryParam}`;
-
-  const handleCopyReferral = async () => {
-    try {
-      await navigator.clipboard.writeText(referralLink);
-      setCopyStatus('Copied!');
-      setTimeout(() => setCopyStatus(null), 2000);
-    } catch {
-      setCopyStatus('Copy failed');
-      setTimeout(() => setCopyStatus(null), 2000);
-    }
-  };
-
-  const handleShare = async () => {
-    if ((navigator as any).share) {
+    // Also fetch platform EFT details (beneficiary account info)
+    (async () => {
+      setEftLoading(true);
       try {
-        await (navigator as any).share({
-          title: 'Join Rabbit Returns',
-          text: 'Join me on Rabbit Returns — invest and earn. Use my referral link:',
-          url: referralLink,
-        });
+        const res = await fetch('/api/payments/eft-details');
+        if (!res.ok) throw new Error(`EFT details fetch failed ${res.status}`);
+        const data = await res.json();
+        setEftDetails(data);
       } catch (err) {
-        console.error('Share failed', err);
+        console.error('Failed to fetch EFT details', err);
+        setEftDetails(null);
+      } finally {
+        setEftLoading(false);
       }
-    } else {
-      // fallback to copy
-      handleCopyReferral();
-    }
-  };
+    })();
+  }, [user]);
+
+  if (loading || fetching || bankLoading || eftLoading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -88,37 +87,54 @@ const Dashboard = () => {
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
         <p className="text-gray-600 mb-6">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
 
-        {/* Referral block */}
-        <div className="mb-6 bg-white rounded-xl shadow p-4 flex flex-col md:flex-row items-start md:items-center gap-3">
-          <div className="flex-1">
-            <h4 className="text-sm font-semibold text-green-600">Your referral link</h4>
-            <p className="text-sm text-gray-600 mb-2">Share this link and earn commissions when friends sign up using your code{referralCode ? ` (${referralCode})` : ''}.</p>
-            <div className="flex gap-2 items-center">
-              <input type="text" readOnly value={referralLink} className="w-full border rounded px-3 py-2 text-sm bg-gray-50" />
-              <button onClick={handleCopyReferral} className="px-3 py-2 bg-white border rounded text-sm">Copy</button>
-              <button onClick={handleShare} className="px-3 py-2 bg-green-600 text-white rounded text-sm">Share</button>
-            </div>
-            {copyStatus && <p className="text-xs text-gray-500 mt-2">{copyStatus}</p>}
-          </div>
-        </div>
-
         {/* Manage buttons */}
         <div className="flex gap-3 mb-6">
           <Link to="/banking" className="px-4 py-2 bg-white border rounded shadow text-sm">Manage Payment Details</Link>
           <Link to="/withdraw" className="px-4 py-2 bg-green-600 text-white rounded shadow text-sm">Request Withdrawal</Link>
+          <Link to="/referrals" className="px-4 py-2 bg-white border rounded shadow text-sm">Referral earnings</Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Payment details card */}
           <div className="bg-white rounded-xl shadow p-6">
-            <h3 className="text-lg font-bold text-green-600 mb-2">My Balance</h3>
-            {balance ? (
+            <h3 className="text-lg font-bold text-green-600 mb-2">Payment details</h3>
+
+            {/* User's saved banking (if any) */}
+            {banking ? (
               <>
-                <div className="text-sm text-gray-600 mb-2">Investment earnings: <strong>R{balance.investmentsSum.toFixed(2)}</strong></div>
-                <div className="text-sm text-gray-600 mb-2">Referral commissions: <strong>R{balance.commissionsSum.toFixed(2)}</strong></div>
-                <div className="text-xl font-bold text-gray-800 mt-2">Available: R{balance.totalBalance.toFixed(2)}</div>
+                <p className="text-sm"><strong>Account holder:</strong> {banking.accountHolder}</p>
+                <p className="text-sm"><strong>Bank:</strong> {banking.bankName}</p>
+                <p className="text-sm"><strong>Account no:</strong> {banking.accountNumber}</p>
+                <p className="text-sm"><strong>Branch code:</strong> {banking.branchCode}</p>
+                <p className="text-sm"><strong>Account type:</strong> {banking.accountType}</p>
+                <div className="mt-3">
+                  <Link to="/banking" className="text-sm text-green-700 hover:underline">Edit payment details</Link>
+                </div>
+                <hr className="my-3" />
               </>
             ) : (
-              <div className="text-sm text-gray-500">Balance unavailable</div>
+              <>
+                <p className="text-sm text-gray-500">You don’t have payment details saved. Add them so you can receive withdrawals.</p>
+                <div className="mt-3">
+                  <Link to="/banking" className="text-sm text-green-700 hover:underline">Add payment details</Link>
+                </div>
+                <hr className="my-3" />
+              </>
+            )}
+
+            {/* Platform EFT details (always show so users/admins know where to pay) */}
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Platform EFT (where payments should be sent)</h4>
+            {eftDetails ? (
+              <div>
+                <p className="text-sm"><strong>Beneficiary:</strong> {eftDetails.beneficiaryName}</p>
+                <p className="text-sm"><strong>Bank:</strong> {eftDetails.bank}</p>
+                <p className="text-sm"><strong>Account no:</strong> {eftDetails.accountNumber}</p>
+                <p className="text-sm"><strong>Branch code:</strong> {eftDetails.branchCode}</p>
+                {eftDetails.reference && <p className="text-sm"><strong>Reference:</strong> {eftDetails.reference}</p>}
+                <p className="text-xs text-gray-500 mt-2">Use the platform reference so admins can match your payment to your investment.</p>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">Platform payment details unavailable.</div>
             )}
           </div>
 
