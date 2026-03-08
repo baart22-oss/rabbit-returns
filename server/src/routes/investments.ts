@@ -37,7 +37,60 @@ const storage = multer.diskStorage({
 });
 const uploadProof = multer({ storage }).single('file');
 
-// ... other endpoints (list/create) remain unchanged
+/**
+ * GET /api/investments
+ * Returns investments for the authenticated user
+ */
+router.get('/', requireAuth, async (req: Request & { user?: any }, res: Response) => {
+  try {
+    const investments = await prisma.investment.findMany({
+      where: { userId: req.user!.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json(investments);
+  } catch (err) {
+    console.error('Error listing investments:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/investments
+ * Create a new investment request (status: pending)
+ */
+router.post('/', requireAuth, async (req: Request & { user?: any }, res: Response) => {
+  try {
+    const { packageName, amountRand, paymentReference } = req.body;
+
+    if (!packageName || !amountRand) {
+      return res.status(400).json({ error: 'packageName and amountRand are required' });
+    }
+
+    if (!VALID_PACKAGES[packageName]) {
+      return res.status(400).json({ error: 'Invalid packageName' });
+    }
+
+    const amount = typeof amountRand === 'string' ? parseFloat(amountRand) : amountRand;
+    if (Number.isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amountRand' });
+    }
+
+    const investment = await prisma.investment.create({
+      data: {
+        userId: req.user!.id,
+        packageName,
+        amountRand: amount,
+        status: 'pending',
+        paymentReference: paymentReference ?? null,
+      },
+    });
+
+    return res.status(201).json(investment);
+  } catch (err) {
+    console.error('Error creating investment:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Upload proof for an investment
 router.post('/:id/proof', requireAuth, uploadProof, async (req: Request & { user?: any }, res: Response) => {
