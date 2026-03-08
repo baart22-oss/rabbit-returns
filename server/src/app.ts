@@ -5,8 +5,10 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
+import cron from 'node-cron';
 
 import prisma from './prisma/client';
+import { runAccrual } from './services/accrual';
 
 // Routers
 import authRouter from './routes/auth';
@@ -42,26 +44,21 @@ try {
 // Serve uploaded files at /uploads/*
 app.use('/uploads', express.static(uploadsDir));
 
-// Fallback route that will serve files directly when frontend requests the bare filename
-// Example: frontend requests "/1772805370726-....jpeg" (no /uploads prefix).
-// This middleware will check uploads/ for the file and serve it if present.
-// It will not interfere with API routes (paths starting with /api) or other static paths.
+// Fallback route to serve bare filenames from uploads (in case frontend requests bare filename)
 app.get('/:filename', (req: Request, res: Response, next: NextFunction) => {
   const { filename } = req.params;
 
-  // Skip common prefixes so we don't accidentally capture API or other routes
   if (!filename) return next();
   if (filename.startsWith('api') || filename.startsWith('uploads') || filename.includes('/')) {
     return next();
   }
 
-  // Allow typical image/file extensions
   const allowedExt = /\.(png|jpg|jpeg|gif|webp|pdf|txt)$/i;
   if (!allowedExt.test(filename)) return next();
 
   const filePath = path.join(uploadsDir, filename);
   fs.access(filePath, fs.constants.R_OK, (err) => {
-    if (err) return next(); // file doesn't exist -> let other routes handle (404)
+    if (err) return next();
     return res.sendFile(filePath);
   });
 });
@@ -147,8 +144,19 @@ const PORT = Number(process.env.PORT || 3000);
 
 (async () => {
   await ensureAdminFromEnv();
+
   app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
+  });
+
+  // Run accrual once at startup (helps with testing)
+  runAccrual().catch(err => console.error('Initial accrual error:', err));
+
+  // Schedule accrual daily at 00:01
+  // '1 0 * * *' => minute=1 hour=0 every day
+  cron.schedule('1 0 * * *', () => {
+    console.log('Running scheduled accrual at 00:01');
+    runAccrual().catch(err => console.error('Scheduled accrual error:', err));
   });
 })();
 
