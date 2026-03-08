@@ -7,13 +7,17 @@ import Dashboard from './pages/Dashboard';
 import InvestPage from './pages/InvestPage';
 import RafflePage from './pages/RafflePage';
 import WithdrawPage from './pages/WithdrawPage';
+import BankingPage from './pages/BankingPage';
 import AdminDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
+import TopRabbitBanner from './components/TopRabbitBanner';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
+        {/* TopRabbitBanner shown across pages — adjust placement/styling as needed */}
+        <TopRabbitBanner intervalMs={7000} height="180px" />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
@@ -21,6 +25,7 @@ function App() {
           <Route path="/invest" element={<InvestPage />} />
           <Route path="/raffle" element={<RafflePage />} />
           <Route path="/withdraw" element={<WithdrawPage />} />
+          <Route path="/banking" element={<BankingPage />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
