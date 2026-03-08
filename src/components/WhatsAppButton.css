@@ -1,0 +1,47 @@
+.whatsapp-floating {
+  position: fixed;
+  right: 18px;
+  bottom: 20px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(90deg, #25D366 0%, #128C7E 100%);
+  color: white;
+  padding: 10px 12px;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.12);
+  text-decoration: none;
+  transition: transform .12s ease, box-shadow .12s ease;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* smaller on mobile to avoid taking too much space */
+@media (max-width: 640px) {
+  .whatsapp-floating {
+    right: 12px;
+    bottom: 14px;
+    padding: 8px 10px;
+    gap: 6px;
+    font-size: 0.85rem;
+  }
+  .whatsapp-text { display: none; } /* only icon on small screens */
+}
+
+.whatsapp-floating:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.18);
+}
+
+.whatsapp-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  flex: 0 0 20px;
+  color: white;
+}
+
+.whatsapp-text {
+  margin-left: 2px;
+}
