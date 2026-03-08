@@ -15,112 +15,172 @@ export function authHeaders() {
 
 import { buildUrl } from './api-utils';
 
+// helper to parse JSON safely
+async function parseJsonSafe(res: Response) {
+  try { return await res.json(); } catch { return {}; }
+}
+
 // --- API Client ---
 export const api = {
   auth: {
-    login: async (email, password) => {
+    login: async (email: string, password: string) => {
       const res = await fetch(buildUrl('/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
       if (data?.token) setToken(data.token);
       return data;
     },
-    signup: async (email, password, fullName, referral) => {
+    signup: async (email: string, password: string, fullName: string, referral?: string) => {
       const res = await fetch(buildUrl('/auth/signup'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, fullName, referralCode: referral }),
       });
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
       if (data?.token) setToken(data.token);
       return data;
     },
     me: async () => {
       const res = await fetch(buildUrl('/auth/me'), { headers: authHeaders() });
-      return await res.json();
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
     },
   },
   investments: {
-    list: async () => fetch(buildUrl('/investments'), { headers: authHeaders() }).then(res => res.json()),
-    create: async ({ packageName, amountRand, paymentReference }) =>
-      fetch(buildUrl('/investments'), {
+    list: async () => {
+      const res = await fetch(buildUrl('/investments'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    create: async ({ packageName, amountRand, paymentReference }: { packageName: string; amountRand: number; paymentReference?: string }) => {
+      const res = await fetch(buildUrl('/investments'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ packageName, amountRand, paymentReference }),
-      }).then(res => res.json()),
-    uploadProof: async (id, file, reference) => {
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    uploadProof: async (id: string, file: File, reference?: string) => {
       const formData = new FormData();
       formData.append('file', file);
       if (reference) formData.append('paymentReference', reference);
       const res = await fetch(buildUrl(`/investments/${id}/proof`), {
         method: 'POST',
-        headers: authHeaders(),
+        headers: { ...authHeaders() }, // let browser set Content-Type
         body: formData,
       });
-      return await res.json();
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
     },
-    get: async (id) => fetch(buildUrl(`/investments/${id}`), { headers: authHeaders() }).then(res => res.json()),
+    get: async (id: string) => {
+      const res = await fetch(buildUrl(`/investments/${id}`), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
   },
   withdrawals: {
-    list: async () => fetch(buildUrl('/withdrawals'), { headers: authHeaders() }).then(res => res.json()),
-    submit: async (body) =>
-      fetch(buildUrl('/withdrawals'), {
+    list: async () => {
+      const res = await fetch(buildUrl('/withdrawals'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    submit: async (body: any) => {
+      const res = await fetch(buildUrl('/withdrawals'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }).then(res => res.json()),
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
   },
   raffle: {
-    tickets: async () => fetch(buildUrl('/raffle/tickets'), { headers: authHeaders() }).then(res => res.json()),
-    status: async () => fetch(buildUrl('/raffle/status'), { headers: authHeaders() }).then(res => res.json()),
-    create: async (reference) =>
-      fetch(buildUrl('/raffle/tickets'), {
+    tickets: async () => {
+      const res = await fetch(buildUrl('/raffle/tickets'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    status: async () => {
+      const res = await fetch(buildUrl('/raffle/status'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    create: async (reference?: string) => {
+      const res = await fetch(buildUrl('/raffle/tickets'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentReference: reference }),
-      }).then(res => res.json()),
-    uploadProof: async (id, file) => {
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    uploadProof: async (id: string, file: File) => {
       const formData = new FormData();
       formData.append('file', file);
       const res = await fetch(buildUrl(`/raffle/tickets/${id}/proof`), {
         method: 'POST',
-        headers: authHeaders(),
+        headers: { ...authHeaders() },
         body: formData,
       });
-      return await res.json();
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
     },
   },
   admin: {
-    dashboard: () => fetch(buildUrl('/admin/dashboard'), { headers: authHeaders() }).then(res => res.json()),
-    investments: () => fetch(buildUrl('/admin/investments'), { headers: authHeaders() }).then(res => res.json()),
-    updateInvestment: (id, body) =>
-      fetch(buildUrl(`/admin/investments/${id}`), {
+    dashboard: async () => {
+      const res = await fetch(buildUrl('/admin/dashboard'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    investments: async () => {
+      const res = await fetch(buildUrl('/admin/investments'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    updateInvestment: async (id: string, body: any) => {
+      const res = await fetch(buildUrl(`/admin/investments/${id}`), {
         method: 'PATCH',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }).then(res => res.json()),
-    withdrawals: () => fetch(buildUrl('/admin/withdrawals'), { headers: authHeaders() }).then(res => res.json()),
-    updateWithdrawal: (id, body) =>
-      fetch(buildUrl(`/admin/withdrawals/${id}`), {
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    withdrawals: async () => {
+      const res = await fetch(buildUrl('/admin/withdrawals'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    updateWithdrawal: async (id: string, body: any) => {
+      const res = await fetch(buildUrl(`/admin/withdrawals/${id}`), {
         method: 'PATCH',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }).then(res => res.json()),
-    raffle: () => fetch(buildUrl('/admin/raffle'), { headers: authHeaders() }).then(res => res.json()),
-    updateRaffle: (id, body) =>
-      fetch(buildUrl(`/admin/raffle/${id}`), {
-        method: 'PATCH',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }).then(res => res.json()),
-    users: () => fetch(buildUrl('/admin/users'), { headers: authHeaders() }).then(res => res.json()),
-    promoteUser: (id) =>
-      fetch(buildUrl(`/admin/users/${id}/promote`), {
-        method: 'PATCH',
-        headers: authHeaders(),
-      }).then(res => res.json()),
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
   },
 };
