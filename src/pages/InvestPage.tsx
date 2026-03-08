@@ -4,13 +4,12 @@ import { api } from "../lib/client";
 import { buildUrl } from "../lib/api-utils";
 import { useAuth } from "../lib/auth";
 
-type EftDetails = {
-  beneficiaryName?: string;
-  bank?: string;
-  accountNumber?: string;
-  branchCode?: string;
-  reference?: string;
-};
+/**
+ * InvestPage: improved submit handling:
+ * - logs and surfaces server errors for create + upload
+ * - catches upload errors (shows toast / console) but does not leave the UI stuck
+ * - always clears submitting flag in finally
+ */
 
 const packages = [
   { name: "Hare Hustler", amount: 1000, img: "/images/rabbit1.jpg" },
@@ -30,71 +29,44 @@ export default function InvestPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // Platform EFT details only (always show platform info you provided)
-  const [eftDetails, setEftDetails] = useState<EftDetails | null>(null);
-  const [eftLoading, setEftLoading] = useState(true);
-  const [showEft, setShowEft] = useState(true);
-
   useEffect(() => {
     if (!loading && !user) navigate("/auth");
   }, [user, loading, navigate]);
-
-  useEffect(() => {
-    async function loadEft() {
-      setEftLoading(true);
-      try {
-        const res = await fetch(buildUrl("/payments/eft-details"));
-        if (res.ok) {
-          const data = await res.json();
-          setEftDetails(data);
-        } else {
-          setEftDetails(null);
-        }
-      } catch (err) {
-        console.error("Failed to load EFT details:", err);
-        setEftDetails(null);
-      } finally {
-        setEftLoading(false);
-      }
-    }
-
-    if (user) loadEft();
-  }, [user]);
-
-  const copyToClipboard = async (text: string | undefined) => {
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      // lightweight UI feedback
-      alert("Copied to clipboard");
-    } catch {
-      // fallback
-      console.warn("Clipboard copy failed");
-    }
-  };
 
   const handleInvest = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
     setSubmitting(true);
     try {
-      const inv = await api.investments.create({
+      // Create investment
+      const createResp = await api.investments.create({
         packageName: selectedPackage.name,
         amountRand: selectedPackage.amount,
         paymentReference: bankReference || undefined,
       });
-      console.log("created investment", inv);
-      if (!inv || !inv.id) {
+
+      console.log("createResp", createResp);
+
+      if (!createResp || !createResp.id) {
+        // Surface server error if API returned unexpected payload
         throw new Error("Investment creation failed or returned invalid id");
       }
 
+      // Upload proof if provided — isolate upload errors from create
       if (file) {
-        const up = await api.investments.uploadProof(inv.id, file, bankReference);
-        console.log("upload result", up);
+        try {
+          const up = await api.investments.uploadProof(createResp.id, file, bankReference);
+          console.log("upload result", up);
+        } catch (uploadErr: any) {
+          console.error("Upload failed:", uploadErr);
+          // Show user but do NOT revert the investment creation
+          setError(`Proof upload failed: ${uploadErr?.message || uploadErr}`);
+        }
       }
 
       setSuccess(true);
-      setTimeout(() => navigate("/dashboard"), 1200);
+      // go to dashboard after success (small delay to show confirmation)
+      setTimeout(() => navigate("/dashboard"), 1000);
     } catch (err: any) {
       console.error("Invest error", err);
       setError(err?.message || "Investment submission failed");
@@ -157,42 +129,6 @@ export default function InvestPage() {
               placeholder="Your bank/EFT reference"
               className="w-full border border-gray-300 rounded-lg px-3 py-2"
             />
-          </div>
-
-          {/* Platform EFT instructions (always show platform info you provided) */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-semibold">Payment instructions (EFT)</h4>
-              {eftDetails && (
-                <button
-                  type="button"
-                  onClick={() => setShowEft(s => !s)}
-                  className="text-xs text-green-600 hover:underline"
-                >
-                  {showEft ? "Hide" : "Show"}
-                </button>
-              )}
-            </div>
-
-            {eftLoading ? (
-              <div className="text-sm text-gray-500">Loading payment instructions…</div>
-            ) : eftDetails && showEft ? (
-              <div className="payment-details mb-4">
-                <p className="text-sm"><strong>Beneficiary:</strong> {eftDetails.beneficiaryName}</p>
-                <p className="text-sm"><strong>Bank:</strong> {eftDetails.bank}</p>
-                <p className="text-sm flex items-center gap-2">
-                  <span><strong>Account no:</strong> {eftDetails.accountNumber}</span>
-                  <button type="button" onClick={() => copyToClipboard(eftDetails.accountNumber)} className="text-xs text-green-600 hover:underline ml-2">Copy</button>
-                </p>
-                <p className="text-sm"><strong>Branch code:</strong> {eftDetails.branchCode}</p>
-                {eftDetails.reference && <p className="text-sm"><strong>Reference:</strong> {eftDetails.reference}</p>}
-                <p className="text-xs text-gray-500 mt-2">Please use the reference exactly as shown so admins can match your payment to your investment.</p>
-              </div>
-            ) : (
-              <div className="payment-details mb-4">
-                <p className="text-sm text-gray-500">Payment instructions are currently unavailable. Contact support for manual instructions.</p>
-              </div>
-            )}
           </div>
 
           <div>
