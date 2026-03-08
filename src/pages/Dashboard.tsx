@@ -54,6 +54,12 @@ const Dashboard = () => {
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
         <p className="text-gray-600 mb-6">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
 
+        {/* Manage buttons */}
+        <div className="flex gap-3 mb-6">
+          <Link to="/banking" className="px-4 py-2 bg-white border rounded shadow text-sm">Manage Payment Details</Link>
+          <Link to="/withdraw" className="px-4 py-2 bg-green-600 text-white rounded shadow text-sm">Request Withdrawal</Link>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold text-green-600 mb-2">My Balance</h3>
