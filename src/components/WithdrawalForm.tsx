@@ -1,19 +1,11 @@
-import { useState } from "react";
-import { useAuth } from "@/lib/auth";
-import { saveWithdrawalRequest } from "@/lib/withdrawalStorage";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/client";
 
 interface WithdrawalFormProps {
   availableBalance: number;
@@ -43,6 +35,26 @@ export default function WithdrawalForm({
   const amountNum = parseFloat(amount) || 0;
   const isValidAmount =
     amountNum >= MIN_WITHDRAWAL && amountNum <= availableBalance;
+
+  // Try to load user's saved banking details and prefill the form
+  useEffect(() => {
+    async function load() {
+      try {
+        const b = await api.banking.get().catch(() => null);
+        if (b) {
+          setBankDetails({
+            bank_name: b.bankName ?? "",
+            account_holder: b.accountHolder ?? "",
+            account_number: b.accountNumber ?? "",
+            branch_code: b.branchCode ?? "",
+          });
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+    load();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,43 +89,37 @@ export default function WithdrawalForm({
     }
 
     setSubmitting(true);
-
     try {
-      saveWithdrawalRequest({
-        userId: user.id,
-        amount: amountNum,
-        method: method === "eft" ? "EFT" : "Crypto",
-        bankDetails:
-          method === "eft"
-            ? {
-                bankName: bankDetails.bank_name,
-                accountHolder: bankDetails.account_holder,
-                accountNumber: bankDetails.account_number,
-                branchCode: bankDetails.branch_code,
-              }
-            : undefined,
-        walletAddress: method !== "eft" ? otherDetails : undefined,
-        reason: reason || undefined,
-      });
+      const payload: any = {
+        amountRand: Number(amountNum),
+        bankName: bankDetails.bank_name,
+        accountHolder: bankDetails.account_holder,
+        accountNumber: bankDetails.account_number,
+        branchCode: bankDetails.branch_code,
+        accountType: method === "eft" ? "CHEQUE" : "CRYPTO",
+      };
 
+      if (method !== "eft") {
+        // server expects bank fields for EFT; for crypto we still pass placeholder bank fields
+        payload.bankName = payload.bankName || "N/A";
+        payload.accountHolder = payload.accountHolder || user.profile?.fullName || user.email;
+        payload.accountNumber = payload.accountNumber || otherDetails;
+        payload.branchCode = payload.branchCode || "000000";
+        payload.accountType = "CRYPTO";
+      }
+
+      const res = await api.withdrawals.submit(payload);
       toast.success("Withdrawal request submitted! We'll process it soon.");
       setAmount("");
       setMethod("eft");
       setReason("");
-      setBankDetails({
-        bank_name: "",
-        account_holder: "",
-        account_number: "",
-        branch_code: "",
-      });
-      setOtherDetails("");
       onSuccess();
-    } catch (err) {
-      toast.error("Failed to submit withdrawal request");
-      console.error("localStorage withdrawal error:", err);
+    } catch (err: any) {
+      console.error("Withdrawal submit failed", err);
+      toast.error(err?.message || "Failed to submit withdrawal");
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
   };
 
   return (
@@ -125,138 +131,85 @@ export default function WithdrawalForm({
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label>Available Balance</Label>
-            <div className="text-3xl font-bold text-primary">
-              R{availableBalance.toLocaleString()}
-            </div>
+            <div className="text-3xl font-bold">R{availableBalance.toLocaleString()}</div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="amount">
-              Amount to Withdraw (Min: R{MIN_WITHDRAWAL})
-            </Label>
-            <Input
-              id="amount"
+          <div>
+            <Label>Amount (ZAR)</Label>
+            <input
               type="number"
-              placeholder="0.00"
+              step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              min={MIN_WITHDRAWAL}
-              max={availableBalance}
-              step="0.01"
-              required
+              className="w-full mt-1 border rounded px-3 py-2"
             />
-            <p className="text-xs text-muted-foreground">
-              {amount && !isValidAmount
-                ? `Please enter amount between R${MIN_WITHDRAWAL} and R${availableBalance.toLocaleString()}`
-                : `Minimum withdrawal: R${MIN_WITHDRAWAL}`}
-            </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="method">Withdrawal Method</Label>
-            <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger id="method">
+          <div>
+            <Label>Method</Label>
+            <Select value={method} onValueChange={(val) => setMethod(val)}>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="eft">EFT / Bank Transfer</SelectItem>
-                <SelectItem value="other">Other (Wallet/Crypto)</SelectItem>
+                <SelectItem value="crypto">Crypto / Wallet</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {method === "eft" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="bank_name">Bank Name</Label>
-                <Input
-                  id="bank_name"
-                  placeholder="E.g., FNB, Standard Bank"
-                  value={bankDetails.bank_name}
-                  onChange={(e) =>
-                    setBankDetails({ ...bankDetails, bank_name: e.target.value })
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="account_holder">Account Holder Name</Label>
-                <Input
-                  id="account_holder"
-                  placeholder="Your full name"
+            <>
+              <div>
+                <Label>Account holder</Label>
+                <input
                   value={bankDetails.account_holder}
-                  onChange={(e) =>
-                    setBankDetails({
-                      ...bankDetails,
-                      account_holder: e.target.value,
-                    })
-                  }
-                  required
+                  onChange={(e) => setBankDetails({ ...bankDetails, account_holder: e.target.value })}
+                  className="w-full mt-1 border rounded px-3 py-2"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="account_number">Account Number</Label>
-                <Input
-                  id="account_number"
-                  placeholder="Your account number"
+              <div>
+                <Label>Bank name</Label>
+                <input
+                  value={bankDetails.bank_name}
+                  onChange={(e) => setBankDetails({ ...bankDetails, bank_name: e.target.value })}
+                  className="w-full mt-1 border rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <Label>Account number</Label>
+                <input
                   value={bankDetails.account_number}
-                  onChange={(e) =>
-                    setBankDetails({
-                      ...bankDetails,
-                      account_number: e.target.value,
-                    })
-                  }
-                  required
+                  onChange={(e) => setBankDetails({ ...bankDetails, account_number: e.target.value })}
+                  className="w-full mt-1 border rounded px-3 py-2"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="branch_code">Branch Code</Label>
-                <Input
-                  id="branch_code"
-                  placeholder="Your branch code"
+              <div>
+                <Label>Branch code</Label>
+                <input
                   value={bankDetails.branch_code}
-                  onChange={(e) =>
-                    setBankDetails({
-                      ...bankDetails,
-                      branch_code: e.target.value,
-                    })
-                  }
-                  required
+                  onChange={(e) => setBankDetails({ ...bankDetails, branch_code: e.target.value })}
+                  className="w-full mt-1 border rounded px-3 py-2"
                 />
               </div>
-            </div>
+            </>
           ) : (
-            <div className="space-y-2">
-              <Label htmlFor="wallet">Wallet Address or Payment Details</Label>
-              <Textarea
-                id="wallet"
-                placeholder="Enter your wallet address, crypto address, or other payment details"
-                value={otherDetails}
-                onChange={(e) => setOtherDetails(e.target.value)}
-                rows={3}
-                required
-              />
+            <div>
+              <Label>Wallet / Payment details</Label>
+              <Textarea value={otherDetails} onChange={(e) => setOtherDetails(e.target.value)} />
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="reason">Reason for Withdrawal (Optional)</Label>
-            <Textarea
-              id="reason"
-              placeholder="Tell us why you're withdrawing (optional)"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-            />
+          <div>
+            <Label>Reason (optional)</Label>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} className="w-full mt-1 border rounded px-3 py-2" />
           </div>
 
-          <Button
-            type="submit"
-            disabled={submitting || !isValidAmount}
-            className="w-full"
-          >
-            {submitting ? "Submitting..." : "Submit Withdrawal Request"}
-          </Button>
+          <div>
+            <button type="submit" disabled={submitting} className="w-full bg-green-600 text-white py-2 rounded">
+              {submitting ? "Submitting…" : "Request Withdrawal"}
+            </button>
+          </div>
         </form>
       </CardContent>
     </Card>
