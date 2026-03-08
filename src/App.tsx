@@ -12,6 +12,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
 import TopRabbitBanner from './components/TopRabbitBanner';
 import WhatsAppButton from './components/WhatsAppButton';
+import ReferralPage from './pages/ReferralPage';
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
           <Route path="/withdraw" element={<WithdrawPage />} />
           <Route path="/banking" element={<BankingPage />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/referrals" element={<ReferralPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
 
