@@ -4,25 +4,21 @@ import { api } from "../lib/client";
 import { buildUrl } from "../lib/api-utils";
 import { useAuth } from "../lib/auth";
 
-/**
- * InvestPage: improved submit handling:
- * - logs and surfaces server errors for create + upload
- * - catches upload errors (shows toast / console) but does not leave the UI stuck
- * - always clears submitting flag in finally
- */
+type PackageDef = { name: string; amount: number; img?: string };
 
-const packages = [
-  { name: "Hare Hustler", amount: 1000, img: "/images/rabbit1.jpg" },
-  { name: "Warren Winner", amount: 2000, img: "/images/rabbit2.jpg" },
-  { name: "Burrow Boss", amount: 5000, img: "/images/rabbit3.jpg" },
-  { name: "Colony King", amount: 10000, img: "/images/rabbit4.jpg" },
+const FALLBACK_PACKAGES: PackageDef[] = [
+  { name: "Hare Hustler", amount: 1000 },
+  { name: "Warren Winner", amount: 2000 },
+  { name: "Burrow Boss", amount: 5000 },
+  { name: "Colony King", amount: 10000 },
 ];
 
 export default function InvestPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
-  const [selectedPackage, setSelectedPackage] = useState(packages[0]);
+  const [packages, setPackages] = useState<PackageDef[]>(FALLBACK_PACKAGES);
+  const [selectedPackage, setSelectedPackage] = useState<PackageDef>(FALLBACK_PACKAGES[0]);
   const [bankReference, setBankReference] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -33,39 +29,47 @@ export default function InvestPage() {
     if (!loading && !user) navigate("/auth");
   }, [user, loading, navigate]);
 
+  useEffect(() => {
+    // Fetch packages from server
+    async function loadPackages() {
+      try {
+        const res = await fetch(buildUrl('/packages'));
+        if (!res.ok) throw new Error('Failed to load packages');
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setPackages(data);
+          setSelectedPackage(data[0]);
+        }
+      } catch (err) {
+        console.warn('Could not load packages from server, using fallback', err);
+      }
+    }
+    loadPackages();
+  }, []);
+
   const handleInvest = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
     setSubmitting(true);
     try {
-      // Create investment
-      const createResp = await api.investments.create({
+      const inv = await api.investments.create({
         packageName: selectedPackage.name,
         amountRand: selectedPackage.amount,
         paymentReference: bankReference || undefined,
       });
+      console.log("created investment", inv);
+      if (!inv || !inv.id) throw new Error("Investment creation failed or returned invalid id");
 
-      console.log("createResp", createResp);
-
-      if (!createResp || !createResp.id) {
-        // Surface server error if API returned unexpected payload
-        throw new Error("Investment creation failed or returned invalid id");
-      }
-
-      // Upload proof if provided — isolate upload errors from create
       if (file) {
         try {
-          const up = await api.investments.uploadProof(createResp.id, file, bankReference);
-          console.log("upload result", up);
+          await api.investments.uploadProof(inv.id, file, bankReference);
         } catch (uploadErr: any) {
           console.error("Upload failed:", uploadErr);
-          // Show user but do NOT revert the investment creation
           setError(`Proof upload failed: ${uploadErr?.message || uploadErr}`);
         }
       }
 
       setSuccess(true);
-      // go to dashboard after success (small delay to show confirmation)
       setTimeout(() => navigate("/dashboard"), 1000);
     } catch (err: any) {
       console.error("Invest error", err);
