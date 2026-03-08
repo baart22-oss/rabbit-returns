@@ -11,17 +11,15 @@ import BankingPage from './pages/BankingPage';
 import AdminDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
 import TopRabbitBanner from './components/TopRabbitBanner';
+import WhatsAppButton from './components/WhatsAppButton';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-       import WhatsAppButton from './components/WhatsAppButton';
-
-// inside your App JSX (e.g. just before closing </Router>)
-<WhatsAppButton />
-        {/* Show banner across pages (adjust height/interval as needed) */}
+        {/* Global banner shown across pages */}
         <TopRabbitBanner intervalMs={7000} height="140px" />
+
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
@@ -33,6 +31,9 @@ function App() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+
+        {/* Floating WhatsApp support button (renders on every page) */}
+        <WhatsAppButton />
       </Router>
     </AuthProvider>
   );
