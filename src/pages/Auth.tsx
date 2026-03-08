@@ -1,6 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { useLocation } from 'react-router-dom';
+
+// inside component:
+const location = useLocation();
+const search = new URLSearchParams(location.search);
+const initialReferral = search.get('ref') || '';
+
+// you can set this into state for the signup form:
+const [referralCode, setReferralCode] = useState(initialReferral);
+
+// then when calling signup:
+await api.auth.signup(email, password, fullName, referralCode || undefined);
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
