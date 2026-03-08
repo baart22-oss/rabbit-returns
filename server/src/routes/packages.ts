@@ -3,15 +3,15 @@ import { Router } from 'express';
 /**
  * Central package definitions used by the server.
  * Keep names and amounts here — frontend will fetch /api/packages so they match exactly.
- *
- * Note: If you previously had VALID_PACKAGES in investments.ts, replace it with this
- * or keep them in sync.
+ * Adjust values to match the investment tiers you want to present.
  */
 export const PACKAGES: Record<string, number> = {
-  'Hare Hustler': 1000,
-  'Warren Winner': 2000,
-  'Burrow Boss': 5000,
-  'Colony King': 10000,
+  'Starter Bunny': 200,
+  'Junior Hopper': 500,
+  'Silver Rabbit': 1000,
+  'Gold Rabbit': 2000,
+  'Platinum Hare': 5000,
+  'Diamond Warren': 10000,
 };
 
 const router = Router();
