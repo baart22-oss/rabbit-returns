@@ -1,3 +1,9 @@
+import packagesRouter from './routes/packages';
+import referralsRouter from './routes/referrals';
+
+// ... later, where API routes are registered:
+app.use('/api/packages', packagesRouter);
+app.use('/api/referrals', referralsRouter);
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
