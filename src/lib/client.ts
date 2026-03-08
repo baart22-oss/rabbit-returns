@@ -53,7 +53,7 @@ export const api = {
     },
   },
 
-  // Banking endpoints
+  // Banking endpoints (per-user and balance)
   banking: {
     get: async () => {
       const res = await fetch(buildUrl('/banking'), { headers: authHeaders() });
@@ -71,7 +71,6 @@ export const api = {
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
       return data;
     },
-    // balance summary (investments earnings + referral commissions)
     balance: async () => {
       const res = await fetch(buildUrl('/banking/balance'), { headers: authHeaders() });
       const data = await parseJsonSafe(res);
@@ -103,7 +102,7 @@ export const api = {
       if (reference) formData.append('paymentReference', reference);
       const res = await fetch(buildUrl(`/investments/${id}/proof`), {
         method: 'POST',
-        headers: { ...authHeaders() }, // let browser set Content-Type
+        headers: { ...authHeaders() },
         body: formData,
       });
       const data = await parseJsonSafe(res);
@@ -214,24 +213,38 @@ export const api = {
       return data;
     },
 
-    // Admin raffle endpoints (added so admin components calling api.admin.raffle.* work)
-    raffle: {
-      list: async () => {
-        const res = await fetch(buildUrl('/admin/raffle'), { headers: authHeaders() });
-        const data = await parseJsonSafe(res);
-        if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-        return data;
-      },
-      updateTicket: async (id: string, body: any) => {
-        const res = await fetch(buildUrl(`/admin/raffle/${id}`), {
-          method: 'PATCH',
-          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        const data = await parseJsonSafe(res);
-        if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-        return data;
-      },
+    // Keep backwards-compatible method names expected by AdminDashboard
+    raffle: async () => {
+      const res = await fetch(buildUrl('/admin/raffle'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    updateRaffle: async (id: string, body: any) => {
+      const res = await fetch(buildUrl(`/admin/raffle/${id}`), {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+
+    users: async () => {
+      const res = await fetch(buildUrl('/admin/users'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    promoteUser: async (id: string) => {
+      const res = await fetch(buildUrl(`/admin/users/${id}/promote`), {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
     },
   },
 };
