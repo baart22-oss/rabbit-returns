@@ -52,6 +52,34 @@ export const api = {
       return data;
     },
   },
+
+  // Banking endpoints
+  banking: {
+    get: async () => {
+      const res = await fetch(buildUrl('/banking'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    upsert: async (body: any) => {
+      const res = await fetch(buildUrl('/banking'), {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    // balance summary (investments earnings + referral commissions)
+    balance: async () => {
+      const res = await fetch(buildUrl('/banking/balance'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+  },
+
   investments: {
     list: async () => {
       const res = await fetch(buildUrl('/investments'), { headers: authHeaders() });
@@ -89,6 +117,7 @@ export const api = {
       return data;
     },
   },
+
   withdrawals: {
     list: async () => {
       const res = await fetch(buildUrl('/withdrawals'), { headers: authHeaders() });
@@ -107,6 +136,7 @@ export const api = {
       return data;
     },
   },
+
   raffle: {
     tickets: async () => {
       const res = await fetch(buildUrl('/raffle/tickets'), { headers: authHeaders() });
@@ -143,6 +173,7 @@ export const api = {
       return data;
     },
   },
+
   admin: {
     dashboard: async () => {
       const res = await fetch(buildUrl('/admin/dashboard'), { headers: authHeaders() });
@@ -181,6 +212,26 @@ export const api = {
       const data = await parseJsonSafe(res);
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
       return data;
+    },
+
+    // Admin raffle endpoints (added so admin components calling api.admin.raffle.* work)
+    raffle: {
+      list: async () => {
+        const res = await fetch(buildUrl('/admin/raffle'), { headers: authHeaders() });
+        const data = await parseJsonSafe(res);
+        if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+        return data;
+      },
+      updateTicket: async (id: string, body: any) => {
+        const res = await fetch(buildUrl(`/admin/raffle/${id}`), {
+          method: 'PATCH',
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await parseJsonSafe(res);
+        if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+        return data;
+      },
     },
   },
 };
