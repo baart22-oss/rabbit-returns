@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, authHeaders, getToken } from "../lib/client";
+import { api } from "../lib/client";
 import { buildUrl } from "../lib/api-utils";
 import { useAuth } from "../lib/auth";
 
-type BankingDetails = {
-  accountHolder?: string | null;
-  bankName?: string | null;
-  accountNumber?: string | null;
-  branchCode?: string | null;
-  accountType?: string | null;
-  payfastEmail?: string | null;
+type EftDetails = {
+  beneficiaryName?: string;
+  bank?: string;
+  accountNumber?: string;
+  branchCode?: string;
+  reference?: string;
 };
 
 const packages = [
@@ -31,58 +30,48 @@ export default function InvestPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // Banking info (per-user) and platform fallback
-  const [myBanking, setMyBanking] = useState<BankingDetails | null>(null);
-  const [platformBank, setPlatformBank] = useState<BankingDetails | null>(null);
-  const [bankingLoading, setBankingLoading] = useState(true);
+  // Platform EFT details only (always show platform info you provided)
+  const [eftDetails, setEftDetails] = useState<EftDetails | null>(null);
+  const [eftLoading, setEftLoading] = useState(true);
+  const [showEft, setShowEft] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) navigate("/auth");
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    async function loadBanking() {
-      setBankingLoading(true);
+    async function loadEft() {
+      setEftLoading(true);
       try {
-        // Try per-user banking first
-        const res = await fetch(buildUrl("/banking"), {
-          headers: authHeaders(),
-        });
-
+        const res = await fetch(buildUrl("/payments/eft-details"));
         if (res.ok) {
           const data = await res.json();
-          setMyBanking(data);
-          setPlatformBank(null);
-        } else if (res.status === 404) {
-          // No per-user banking saved, try public platform payment info if available
-          try {
-            const p = await fetch(buildUrl("/payments/info"));
-            if (p.ok) {
-              setPlatformBank(await p.json());
-            } else {
-              setPlatformBank(null);
-            }
-            setMyBanking(null);
-          } catch (err) {
-            setPlatformBank(null);
-            setMyBanking(null);
-          }
+          setEftDetails(data);
         } else {
-          // other error
-          setMyBanking(null);
-          setPlatformBank(null);
+          setEftDetails(null);
         }
       } catch (err) {
-        console.error("Failed loading banking details", err);
-        setMyBanking(null);
-        setPlatformBank(null);
+        console.error("Failed to load EFT details:", err);
+        setEftDetails(null);
       } finally {
-        setBankingLoading(false);
+        setEftLoading(false);
       }
     }
 
-    if (user) loadBanking();
+    if (user) loadEft();
   }, [user]);
+
+  const copyToClipboard = async (text: string | undefined) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      // lightweight UI feedback
+      alert("Copied to clipboard");
+    } catch {
+      // fallback
+      console.warn("Clipboard copy failed");
+    }
+  };
 
   const handleInvest = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -170,33 +159,38 @@ export default function InvestPage() {
             />
           </div>
 
-          {/* Banking details display */}
+          {/* Platform EFT instructions (always show platform info you provided) */}
           <div>
-            <h4 className="text-sm font-semibold mb-2">Payment details</h4>
-            {bankingLoading ? (
-              <div className="text-sm text-gray-500">Loading payment details…</div>
-            ) : myBanking ? (
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-semibold">Payment instructions (EFT)</h4>
+              {eftDetails && (
+                <button
+                  type="button"
+                  onClick={() => setShowEft(s => !s)}
+                  className="text-xs text-green-600 hover:underline"
+                >
+                  {showEft ? "Hide" : "Show"}
+                </button>
+              )}
+            </div>
+
+            {eftLoading ? (
+              <div className="text-sm text-gray-500">Loading payment instructions…</div>
+            ) : eftDetails && showEft ? (
               <div className="payment-details mb-4">
-                <p className="text-sm"><strong>Account holder:</strong> {myBanking.accountHolder}</p>
-                <p className="text-sm"><strong>Bank:</strong> {myBanking.bankName}</p>
-                <p className="text-sm"><strong>Account no:</strong> {myBanking.accountNumber}</p>
-                <p className="text-sm"><strong>Branch code:</strong> {myBanking.branchCode}</p>
-                <p className="text-sm"><strong>Account type:</strong> {myBanking.accountType}</p>
-                {myBanking.payfastEmail && <p className="text-sm"><strong>Payfast email:</strong> {myBanking.payfastEmail}</p>}
-              </div>
-            ) : platformBank ? (
-              <div className="payment-details mb-4">
-                <p className="text-sm"><strong>Account holder:</strong> {platformBank.accountHolder}</p>
-                <p className="text-sm"><strong>Bank:</strong> {platformBank.bankName}</p>
-                <p className="text-sm"><strong>Account no:</strong> {platformBank.accountNumber}</p>
-                <p className="text-sm"><strong>Branch code:</strong> {platformBank.branchCode}</p>
-                <p className="text-sm"><strong>Account type:</strong> {platformBank.accountType}</p>
-                {platformBank.payfastEmail && <p className="text-sm"><strong>Payfast email:</strong> {platformBank.payfastEmail}</p>}
-                <p className="text-xs text-gray-500 mt-2">These are platform payment instructions from the server (read-only).</p>
+                <p className="text-sm"><strong>Beneficiary:</strong> {eftDetails.beneficiaryName}</p>
+                <p className="text-sm"><strong>Bank:</strong> {eftDetails.bank}</p>
+                <p className="text-sm flex items-center gap-2">
+                  <span><strong>Account no:</strong> {eftDetails.accountNumber}</span>
+                  <button type="button" onClick={() => copyToClipboard(eftDetails.accountNumber)} className="text-xs text-green-600 hover:underline ml-2">Copy</button>
+                </p>
+                <p className="text-sm"><strong>Branch code:</strong> {eftDetails.branchCode}</p>
+                {eftDetails.reference && <p className="text-sm"><strong>Reference:</strong> {eftDetails.reference}</p>}
+                <p className="text-xs text-gray-500 mt-2">Please use the reference exactly as shown so admins can match your payment to your investment.</p>
               </div>
             ) : (
               <div className="payment-details mb-4">
-                <p className="text-sm text-gray-500">No banking details available. You can add your banking details in your profile, or contact support for payment instructions.</p>
+                <p className="text-sm text-gray-500">Payment instructions are currently unavailable. Contact support for manual instructions.</p>
               </div>
             )}
           </div>
