@@ -1,6 +1,6 @@
 import prisma from '../prisma/client';
 
-const DAILY_RATE = 0.02 / 180;
+const DAILY_RATE = 0.02; // 2% per day (use only if you intend 2% each day)
 const TWENTY_THREE_HOURS_MS = 23 * 60 * 60 * 1000;
 
 export async function runAccrual(): Promise<void> {
