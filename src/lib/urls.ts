@@ -6,6 +6,7 @@ import { API_BASE_SAFE } from './api-utils';
  */
 export function proofUrl(filename: string | null | undefined): string | null {
   if (!filename) return null;
+  // API_BASE_SAFE ends with /api; remove it so we have the host root
   const host = API_BASE_SAFE.replace(/\/api$/, '');
   return `${host}/uploads/${encodeURIComponent(filename)}`;
 }
