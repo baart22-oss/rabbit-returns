@@ -6,16 +6,9 @@ import prisma from '../prisma/client';
 import { requireAuth } from '../middleware/auth';
 import { sendAdminNewProof } from '../services/email';
 import { v4 as uuidv4 } from 'uuid';
+import { PACKAGES } from './packages'; // <- import central packages
 
 const router = Router();
-
-// Investment packages map (ensure this matches your frontend)
-const VALID_PACKAGES: Record<string, number> = {
-  'Hare Hustler': 1000,
-  'Warren Winner': 2000,
-  'Burrow Boss': 5000,
-  'Colony King': 10000,
-};
 
 // Ensure uploads dir exists (same as app.ts)
 const uploadsPath = path.join(process.cwd(), 'uploads');
@@ -66,7 +59,7 @@ router.post('/', requireAuth, async (req: Request & { user?: any }, res: Respons
       return res.status(400).json({ error: 'packageName and amountRand are required' });
     }
 
-    if (!VALID_PACKAGES[packageName]) {
+    if (!PACKAGES[packageName]) {
       return res.status(400).json({ error: 'Invalid packageName' });
     }
 
