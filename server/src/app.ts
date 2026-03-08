@@ -1,9 +1,3 @@
-import packagesRouter from './routes/packages';
-import referralsRouter from './routes/referrals';
-
-// ... later, where API routes are registered:
-app.use('/api/packages', packagesRouter);
-app.use('/api/referrals', referralsRouter);
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
@@ -24,6 +18,8 @@ import investmentsRouter from './routes/investments';
 import paymentsRouter from './routes/payments';
 import raffleRouter from './routes/raffle';
 import withdrawalsRouter from './routes/withdrawals';
+import packagesRouter from './routes/packages';
+import referralsRouter from './routes/referrals';
 
 const app = express();
 
@@ -77,6 +73,10 @@ app.use('/api/investments', investmentsRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/raffle', raffleRouter);
 app.use('/api/withdrawals', withdrawalsRouter);
+
+// Newly added routes
+app.use('/api/packages', packagesRouter);
+app.use('/api/referrals', referralsRouter);
 
 app.get('/', (_req: Request, res: Response) => {
   res.send('Backend is running!');
