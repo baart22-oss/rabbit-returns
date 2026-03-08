@@ -16,6 +16,10 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+       import WhatsAppButton from './components/WhatsAppButton';
+
+// inside your App JSX (e.g. just before closing </Router>)
+<WhatsAppButton />
         {/* Show banner across pages (adjust height/interval as needed) */}
         <TopRabbitBanner intervalMs={7000} height="140px" />
         <Routes>
