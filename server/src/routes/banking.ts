@@ -4,29 +4,68 @@ import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
-// existing upsert/list endpoints may remain (not repeated here)
+// GET user's banking details
+router.get('/', requireAuth, async (req: Request & { user?: any }, res: Response) => {
+  try {
+    const banking = await prisma.bankingDetails.findUnique({
+      where: { userId: req.user!.id },
+    });
+    if (!banking) return res.status(404).json({ error: 'No banking details found' });
+    return res.json(banking);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
-// GET /api/banking/balance
-// Returns computed balance: earnings from investments + referral commissions
+// Upsert user's banking details
+router.post('/', requireAuth, async (req: Request & { user?: any }, res: Response) => {
+  try {
+    const { accountHolder, bankName, accountNumber, branchCode, accountType, payfastEmail } = req.body;
+
+    if (!accountHolder || !bankName || !accountNumber || !branchCode || !accountType) {
+      return res.status(400).json({ error: 'accountHolder, bankName, accountNumber, branchCode, and accountType are required' });
+    }
+
+    const banking = await prisma.bankingDetails.upsert({
+      where: { userId: req.user!.id },
+      update: { accountHolder, bankName, accountNumber, branchCode, accountType, payfastEmail: payfastEmail ?? null },
+      create: {
+        userId: req.user!.id,
+        accountHolder,
+        bankName,
+        accountNumber,
+        branchCode,
+        accountType,
+        payfastEmail: payfastEmail ?? null,
+      },
+    });
+
+    return res.json(banking);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// NEW: GET /api/banking/balance
+// Returns computed balance = sum of active investments' totalEarned + referral commissions earned
 router.get('/balance', requireAuth, async (req: Request & { user?: any }, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    // Sum totalEarned from investments (optionally only active investments)
     const investmentsSumResult = await prisma.investment.aggregate({
       where: { userId, status: 'active' },
       _sum: { totalEarned: true }
     });
     const investmentsSum = investmentsSumResult._sum.totalEarned ?? 0;
 
-    // Sum referral commissions earned by user
     const commissionsSumResult = await prisma.referralCommission.aggregate({
       where: { earnerId: userId },
       _sum: { amountRand: true }
     });
     const commissionsSum = commissionsSumResult._sum.amountRand ?? 0;
 
-    // Optionally include other sources (e.g., direct payments)
     const totalBalance = investmentsSum + commissionsSum;
 
     return res.json({
