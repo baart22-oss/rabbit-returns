@@ -11,6 +11,7 @@ const Dashboard = () => {
   const [tickets, setTickets] = useState<any[]>([]);
   const [fetching, setFetching] = useState(true);
   const [balance, setBalance] = useState<{ investmentsSum: number; commissionsSum: number; totalBalance: number } | null>(null);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate('/auth');
@@ -40,6 +41,39 @@ const Dashboard = () => {
   if (loading || fetching) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
   if (!user) return null;
 
+  // Build referral info (use the referralCode from user.profile if available)
+  const referralCode = user?.profile?.referralCode ?? '';
+  const referralQueryParam = referralCode ? `ref=${encodeURIComponent(referralCode)}` : '';
+  const referralLink = `${window.location.origin}/auth?${referralQueryParam}`;
+
+  const handleCopyReferral = async () => {
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      setCopyStatus('Copied!');
+      setTimeout(() => setCopyStatus(null), 2000);
+    } catch {
+      setCopyStatus('Copy failed');
+      setTimeout(() => setCopyStatus(null), 2000);
+    }
+  };
+
+  const handleShare = async () => {
+    if ((navigator as any).share) {
+      try {
+        await (navigator as any).share({
+          title: 'Join Rabbit Returns',
+          text: 'Join me on Rabbit Returns — invest and earn. Use my referral link:',
+          url: referralLink,
+        });
+      } catch (err) {
+        console.error('Share failed', err);
+      }
+    } else {
+      // fallback to copy
+      handleCopyReferral();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm sticky top-0 z-50">
@@ -53,6 +87,20 @@ const Dashboard = () => {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
         <p className="text-gray-600 mb-6">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
+
+        {/* Referral block */}
+        <div className="mb-6 bg-white rounded-xl shadow p-4 flex flex-col md:flex-row items-start md:items-center gap-3">
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-green-600">Your referral link</h4>
+            <p className="text-sm text-gray-600 mb-2">Share this link and earn commissions when friends sign up using your code{referralCode ? ` (${referralCode})` : ''}.</p>
+            <div className="flex gap-2 items-center">
+              <input type="text" readOnly value={referralLink} className="w-full border rounded px-3 py-2 text-sm bg-gray-50" />
+              <button onClick={handleCopyReferral} className="px-3 py-2 bg-white border rounded text-sm">Copy</button>
+              <button onClick={handleShare} className="px-3 py-2 bg-green-600 text-white rounded text-sm">Share</button>
+            </div>
+            {copyStatus && <p className="text-xs text-gray-500 mt-2">{copyStatus}</p>}
+          </div>
+        </div>
 
         {/* Manage buttons */}
         <div className="flex gap-3 mb-6">
