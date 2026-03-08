@@ -1,3 +1,4 @@
+import { proofUrl } from '@/lib/urls';
 import React, { useEffect, useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
@@ -138,11 +139,27 @@ const AdminDashboard = () => {
                         inv.status === 'rejected' ? 'bg-red-100 text-red-700' :
                         'bg-yellow-100 text-yellow-700'
                       }`}>{inv.status}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {inv.proofOfPayment ? (
-                        <a href={inv.proofOfPayment} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-xs">View</a>
-                      ) : '—'}
+                   <td className="px-4 py-3">
+  {inv.proofOfPayment ? (
+    <button
+      type="button"
+      onClick={() => {
+        const url = proofUrl(inv.proofOfPayment);
+        if (!url) {
+          // optional: replace with toast/modal if you have one
+          alert('Proof file not available');
+          return;
+        }
+        window.open(url, '_blank', 'noopener');
+      }}
+      className="text-blue-600 hover:underline text-xs"
+    >
+      View
+    </button>
+  ) : (
+    '—'
+  )}
+</td>
                     </td>
                     <td className="px-4 py-3 text-gray-500">{new Date(inv.createdAt).toLocaleDateString()}</td>
                     <td className="px-4 py-3">
