@@ -16,8 +16,8 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        {/* TopRabbitBanner shown across pages — adjust placement/styling as needed */}
-        <TopRabbitBanner intervalMs={7000} height="180px" />
+        {/* Show banner across pages (adjust height/interval as needed) */}
+        <TopRabbitBanner intervalMs={7000} height="140px" />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
