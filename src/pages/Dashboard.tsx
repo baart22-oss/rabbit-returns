@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/client';
+import { PLATFORM_EFT } from '../lib/eft';
 
 const Dashboard = () => {
   const { user, loading, isAdmin } = useAuth();
@@ -13,8 +14,6 @@ const Dashboard = () => {
   const [balance, setBalance] = useState<{ investmentsSum: number; commissionsSum: number; totalBalance: number } | null>(null);
   const [banking, setBanking] = useState<any | null>(null);
   const [bankLoading, setBankLoading] = useState(true);
-  const [eftDetails, setEftDetails] = useState<any | null>(null);
-  const [eftLoading, setEftLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) navigate('/auth');
@@ -52,25 +51,9 @@ const Dashboard = () => {
         setBanking(null);
       })
       .finally(() => setBankLoading(false));
-
-    // Also fetch platform EFT details (beneficiary account info)
-    (async () => {
-      setEftLoading(true);
-      try {
-        const res = await fetch('/api/payments/eft-details');
-        if (!res.ok) throw new Error(`EFT details fetch failed ${res.status}`);
-        const data = await res.json();
-        setEftDetails(data);
-      } catch (err) {
-        console.error('Failed to fetch EFT details', err);
-        setEftDetails(null);
-      } finally {
-        setEftLoading(false);
-      }
-    })();
   }, [user]);
 
-  if (loading || fetching || bankLoading || eftLoading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
+  if (loading || fetching || bankLoading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
   if (!user) return null;
 
   return (
@@ -87,7 +70,6 @@ const Dashboard = () => {
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
         <p className="text-gray-600 mb-6">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
 
-        {/* Manage buttons */}
         <div className="flex gap-3 mb-6">
           <Link to="/banking" className="px-4 py-2 bg-white border rounded shadow text-sm">Manage Payment Details</Link>
           <Link to="/withdraw" className="px-4 py-2 bg-green-600 text-white rounded shadow text-sm">Request Withdrawal</Link>
@@ -99,7 +81,6 @@ const Dashboard = () => {
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold text-green-600 mb-2">Payment details</h3>
 
-            {/* User's saved banking (if any) */}
             {banking ? (
               <>
                 <p className="text-sm"><strong>Account holder:</strong> {banking.accountHolder}</p>
@@ -122,20 +103,15 @@ const Dashboard = () => {
               </>
             )}
 
-            {/* Platform EFT details (always show so users/admins know where to pay) */}
             <h4 className="text-sm font-semibold text-gray-700 mb-2">Platform EFT (where payments should be sent)</h4>
-            {eftDetails ? (
-              <div>
-                <p className="text-sm"><strong>Beneficiary:</strong> {eftDetails.beneficiaryName}</p>
-                <p className="text-sm"><strong>Bank:</strong> {eftDetails.bank}</p>
-                <p className="text-sm"><strong>Account no:</strong> {eftDetails.accountNumber}</p>
-                <p className="text-sm"><strong>Branch code:</strong> {eftDetails.branchCode}</p>
-                {eftDetails.reference && <p className="text-sm"><strong>Reference:</strong> {eftDetails.reference}</p>}
-                <p className="text-xs text-gray-500 mt-2">Use the platform reference so admins can match your payment to your investment.</p>
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500">Platform payment details unavailable.</div>
-            )}
+            <div>
+              <p className="text-sm"><strong>Beneficiary:</strong> {PLATFORM_EFT.beneficiaryName}</p>
+              <p className="text-sm"><strong>Bank:</strong> {PLATFORM_EFT.bank}</p>
+              <p className="text-sm"><strong>Account no:</strong> {PLATFORM_EFT.accountNumber}</p>
+              <p className="text-sm"><strong>Branch code:</strong> {PLATFORM_EFT.branchCode}</p>
+              {PLATFORM_EFT.reference && <p className="text-sm"><strong>Reference:</strong> {PLATFORM_EFT.reference}</p>}
+              <p className="text-xs text-gray-500 mt-2">Use the platform reference so admins can match your payment to your investment.</p>
+            </div>
           </div>
 
           <div className="bg-white rounded-xl shadow p-6">
