@@ -7,10 +7,14 @@ import { PLATFORM_EFT } from '../lib/eft';
 
 async function safeFetchJson(url: string, opts: RequestInit = {}) {
   const res = await fetch(url, opts);
-  try { return await res.json(); } catch { return {}; }
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
 }
 
-const POLL_INTERVAL_MS = 20_000;
+const POLL_INTERVAL_MS = 20_000; // 20s
 
 const Dashboard: React.FC = () => {
   const { user, loading, isAdmin } = useAuth();
@@ -30,9 +34,7 @@ const Dashboard: React.FC = () => {
 
   const [banking, setBanking] = useState<any | null>(null);
   const [bankLoading, setBankLoading] = useState(true);
-
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
-  const [refCopyStatus, setRefCopyStatus] = useState<string | null>(null);
 
   const pollingRef = useRef<number | null>(null);
 
@@ -162,37 +164,25 @@ const Dashboard: React.FC = () => {
       .finally(() => setBankLoading(false));
   }, [user]);
 
-  const handleCopy = async (text: string, target: 'eft' | 'ref' = 'eft') => {
+  const handleCopy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      if (target === 'ref') {
-        setRefCopyStatus('Copied!');
-        setTimeout(() => setRefCopyStatus(null), 2000);
-      } else {
-        setCopyStatus('Copied!');
-        setTimeout(() => setCopyStatus(null), 2000);
-      }
+      setCopyStatus('Copied!');
+      setTimeout(() => setCopyStatus(null), 2000);
     } catch {
-      if (target === 'ref') {
-        setRefCopyStatus('Copy failed');
-        setTimeout(() => setRefCopyStatus(null), 2000);
-      } else {
-        setCopyStatus('Copy failed');
-        setTimeout(() => setCopyStatus(null), 2000);
-      }
+      setCopyStatus('Copy failed');
+      setTimeout(() => setCopyStatus(null), 2000);
     }
   };
 
   const handleManualRefresh = () => fetchAggregatedData({ forceBalance: true });
 
+  // --- Referral values derived from authenticated user profile
+  const referralCode = user?.profile?.referralCode ?? null;
+  const referralUrl = referralCode ? `${window.location.origin}/auth?ref=${encodeURIComponent(referralCode)}` : null;
+
   if (loading || fetching || bankLoading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
   if (!user) return null;
-
-  // Referral link
-  const referralCode = user?.profile?.referralCode;
-  const referralUrl = referralCode
-    ? `${window.location.origin}/signup?ref=${encodeURIComponent(referralCode)}`
-    : '';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -209,30 +199,38 @@ const Dashboard: React.FC = () => {
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
-        <p className="text-gray-600 mb-2">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
+        <p className="text-gray-600 mb-4">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
 
-        {/* Referral Link Row */}
-        {referralCode && (
-          <div className="p-2 rounded bg-green-50 border border-green-200 flex items-center gap-3 mb-4">
-            <span className="text-sm text-green-800 font-semibold">
-              Invite friends: 
-            </span>
-            <input
-              value={referralUrl}
-              readOnly
-              className="px-2 py-1 border rounded bg-white text-xs font-mono w-72"
-              style={{ outline: 0 }}
-              onFocus={(e) => e.target.select()}
-            />
-            <button
-              className="px-2 py-1 text-xs bg-green-600 text-white rounded"
-              onClick={() => handleCopy(referralUrl, "ref")}
-            >
-              Copy
-            </button>
-            {refCopyStatus && <span className="ml-2 text-xs text-gray-500">{refCopyStatus}</span>}
-          </div>
-        )}
+        {/* Referral card (shows user's referral code and shareable link) */}
+        <div className="bg-white rounded-xl shadow p-4 mb-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Your referral</h3>
+          {referralCode ? (
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-gray-500">Referral code</div>
+                <div className="font-mono text-sm text-gray-800">{referralCode}</div>
+                <div className="text-xs text-gray-500 mt-1">Share this link to invite friends:</div>
+                <div className="text-xs text-green-700">{referralUrl}</div>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={() => handleCopy(referralCode)}
+                  className="text-xs bg-gray-100 px-3 py-1 rounded"
+                >
+                  Copy code
+                </button>
+                <button
+                  onClick={() => referralUrl && handleCopy(referralUrl)}
+                  className="text-xs bg-gray-100 px-3 py-1 rounded"
+                >
+                  Copy link
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">No referral code available. Referral codes are created at signup.</div>
+          )}
+        </div>
 
         <div className="flex gap-3 mb-6">
           <Link to="/banking" className="px-4 py-2 bg-white border rounded shadow text-sm">Manage Payment Details</Link>
@@ -255,7 +253,6 @@ const Dashboard: React.FC = () => {
             )}
           </div>
 
-          {/* (leave rest of payment details and investments unchanged) */}
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold text-green-600 mb-2">Payment details</h3>
 
