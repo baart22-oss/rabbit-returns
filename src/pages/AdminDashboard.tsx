@@ -1,18 +1,23 @@
-import { proofUrl } from '@/lib/urls';
 import React, { useEffect, useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { api } from '../lib/client';
+import { api, authHeaders } from '../lib/client';
+import { buildUrl } from '../lib/api-utils';
+import { proofUrl } from '../lib/urls';
 
 const AdminDashboard = () => {
   const { isAdmin, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
-  const [stats, setStats] = useState(null);
-  const [investments, setInvestments] = useState([]);
-  const [withdrawals, setWithdrawals] = useState([]);
-  const [raffleTickets, setRaffleTickets] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [stats, setStats] = useState<any>(null);
+  const [investments, setInvestments] = useState<any[]>([]);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [raffleTickets, setRaffleTickets] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [fetching, setFetching] = useState(true);
+
+  // Accrual run state
+  const [runningAccrual, setRunningAccrual] = useState(false);
+  const [accrualResult, setAccrualResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -34,32 +39,62 @@ const AdminDashboard = () => {
       .finally(() => setFetching(false));
   }, [isAdmin]);
 
-  const updateInvestment = async (id, status) => {
+  const updateInvestment = async (id: string, status: string) => {
     try {
       const updated = await api.admin.updateInvestment(id, { status });
       setInvestments(prev => prev.map(i => (i.id === id ? updated : i)));
     } catch {}
   };
 
-  const updateWithdrawal = async (id, status, adminNote) => {
+  const updateWithdrawal = async (id: string, status: string, adminNote?: string) => {
     try {
       const updated = await api.admin.updateWithdrawal(id, { status, adminNote });
       setWithdrawals(prev => prev.map(w => (w.id === id ? updated : w)));
     } catch {}
   };
 
-  const updateRaffle = async (id, status) => {
+  const updateRaffle = async (id: string, status: string) => {
     try {
       const updated = await api.admin.updateRaffle(id, { status });
       setRaffleTickets(prev => prev.map(t => (t.id === id ? updated : t)));
     } catch {}
   };
 
-  const promoteUser = async (id) => {
+  const promoteUser = async (id: string) => {
     try {
       await api.admin.promoteUser(id);
       setUsers(prev => prev.map(u => (u.id === id ? { ...u, role: 'admin' } : u)));
     } catch {}
+  };
+
+  // Run accrual manually (calls backend POST /api/admin/run-accrual)
+  const handleRunAccrual = async () => {
+    setRunningAccrual(true);
+    setAccrualResult(null);
+    try {
+      const res = await fetch(buildUrl('/admin/run-accrual'), {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        const errMsg = json?.error || `Server returned ${res.status}`;
+        setAccrualResult(`Failed: ${errMsg}`);
+      } else {
+        setAccrualResult('Accrual run triggered successfully');
+        // Optionally refresh dashboard stats after accrual
+        try {
+          const s = await api.admin.dashboard();
+          setStats(s);
+        } catch (e) {
+          // ignore refresh errors
+        }
+      }
+    } catch (err: any) {
+      setAccrualResult(`Error: ${err?.message || String(err)}`);
+    } finally {
+      setRunningAccrual(false);
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
@@ -73,9 +108,26 @@ const AdminDashboard = () => {
       <nav className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="text-xl font-bold text-green-700">🐰 Rabbit Returns</Link>
-          <span className="text-sm text-gray-500">Admin Dashboard</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500 mr-4">Admin Dashboard</span>
+
+            {/* Run accrual button (admin-only) */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRunAccrual}
+                disabled={runningAccrual}
+                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-60"
+                title="Run accrual now (admin only)"
+              >
+                {runningAccrual ? 'Running…' : 'Run Accrual'}
+              </button>
+              {accrualResult && <span className="text-xs text-gray-600">{accrualResult}</span>}
+            </div>
+
+          </div>
         </div>
       </nav>
+
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Admin Dashboard</h1>
         {/* Tabs */}
@@ -94,6 +146,7 @@ const AdminDashboard = () => {
             </button>
           ))}
         </div>
+
         {/* Overview */}
         {activeTab === 'overview' && stats && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -113,6 +166,7 @@ const AdminDashboard = () => {
             ))}
           </div>
         )}
+
         {/* Investments */}
         {activeTab === 'investments' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -139,27 +193,24 @@ const AdminDashboard = () => {
                         inv.status === 'rejected' ? 'bg-red-100 text-red-700' :
                         'bg-yellow-100 text-yellow-700'
                       }`}>{inv.status}</span>
-                   <td className="px-4 py-3">
-  {inv.proofOfPayment ? (
-    <button
-      type="button"
-      onClick={() => {
-        const url = proofUrl(inv.proofOfPayment);
-        if (!url) {
-          // optional: replace with toast/modal if you have one
-          alert('Proof file not available');
-          return;
-        }
-        window.open(url, '_blank', 'noopener');
-      }}
-      className="text-blue-600 hover:underline text-xs"
-    >
-      View
-    </button>
-  ) : (
-    '—'
-  )}
-</td>
+                    </td>
+                    <td className="px-4 py-3">
+                      {inv.proofOfPayment ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = proofUrl(inv.proofOfPayment);
+                            if (!url) {
+                              alert('Proof file not available');
+                              return;
+                            }
+                            window.open(url, '_blank', 'noopener');
+                          }}
+                          className="text-blue-600 hover:underline text-xs"
+                        >
+                          View
+                        </button>
+                      ) : '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-500">{new Date(inv.createdAt).toLocaleDateString()}</td>
                     <td className="px-4 py-3">
@@ -181,6 +232,7 @@ const AdminDashboard = () => {
             {investments.length === 0 && <p className="text-center text-gray-400 py-8">No investments.</p>}
           </div>
         )}
+
         {/* Withdrawals */}
         {activeTab === 'withdrawals' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -227,6 +279,7 @@ const AdminDashboard = () => {
             {withdrawals.length === 0 && <p className="text-center text-gray-400 py-8">No withdrawals.</p>}
           </div>
         )}
+
         {/* Raffle */}
         {activeTab === 'raffle' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -253,7 +306,20 @@ const AdminDashboard = () => {
                     </td>
                     <td className="px-4 py-3">
                       {t.proofOfPayment ? (
-                        <a href={t.proofOfPayment} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-xs">View</a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = proofUrl(t.proofOfPayment);
+                            if (!url) {
+                              alert('Proof file not available');
+                              return;
+                            }
+                            window.open(url, '_blank', 'noopener');
+                          }}
+                          className="text-blue-600 hover:underline text-xs"
+                        >
+                          View
+                        </button>
                       ) : '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-500">{new Date(t.createdAt).toLocaleDateString()}</td>
@@ -275,6 +341,7 @@ const AdminDashboard = () => {
             {raffleTickets.length === 0 && <p className="text-center text-gray-400 py-8">No raffle tickets.</p>}
           </div>
         )}
+
         {/* Users */}
         {activeTab === 'users' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -296,7 +363,7 @@ const AdminDashboard = () => {
                         u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
                       }`}>{u.role}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{u.profile?.referralCode ?? '��'}</td>
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{u.profile?.referralCode ?? '—'}</td>
                     <td className="px-4 py-3">
                       {u.role !== 'admin' && (
                         <button
