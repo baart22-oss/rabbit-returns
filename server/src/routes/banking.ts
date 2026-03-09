@@ -48,8 +48,11 @@ router.post('/', requireAuth, async (req: Request & { user?: any }, res: Respons
   }
 });
 
-// NEW: GET /api/banking/balance
-// Returns computed balance = sum of active investments' totalEarned + referral commissions earned
+/**
+ * GET /api/banking/balance
+ * Returns computed balance = sum of active investments' totalEarned + referral commissions earned
+ * minus any withdrawals already marked as 'paid'.
+ */
 router.get('/balance', requireAuth, async (req: Request & { user?: any }, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -66,11 +69,19 @@ router.get('/balance', requireAuth, async (req: Request & { user?: any }, res: R
     });
     const commissionsSum = commissionsSumResult._sum.amountRand ?? 0;
 
-    const totalBalance = investmentsSum + commissionsSum;
+    // Sum of withdrawals already paid out to the user (these should reduce available balance).
+    const paidWithdrawalsRes = await prisma.withdrawal.aggregate({
+      where: { userId, status: 'paid' },
+      _sum: { amountRand: true }
+    });
+    const totalWithdrawnPaid = paidWithdrawalsRes._sum.amountRand ?? 0;
+
+    const totalBalance = investmentsSum + commissionsSum - totalWithdrawnPaid;
 
     return res.json({
       investmentsSum,
       commissionsSum,
+      totalWithdrawnPaid,
       totalBalance
     });
   } catch (err) {
