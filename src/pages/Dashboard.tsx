@@ -7,14 +7,10 @@ import { PLATFORM_EFT } from '../lib/eft';
 
 async function safeFetchJson(url: string, opts: RequestInit = {}) {
   const res = await fetch(url, opts);
-  try {
-    return await res.json();
-  } catch {
-    return {};
-  }
+  try { return await res.json(); } catch { return {}; }
 }
 
-const POLL_INTERVAL_MS = 20_000; // 20s
+const POLL_INTERVAL_MS = 20_000;
 
 const Dashboard: React.FC = () => {
   const { user, loading, isAdmin } = useAuth();
@@ -34,7 +30,9 @@ const Dashboard: React.FC = () => {
 
   const [banking, setBanking] = useState<any | null>(null);
   const [bankLoading, setBankLoading] = useState(true);
+
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const [refCopyStatus, setRefCopyStatus] = useState<string | null>(null);
 
   const pollingRef = useRef<number | null>(null);
 
@@ -164,14 +162,24 @@ const Dashboard: React.FC = () => {
       .finally(() => setBankLoading(false));
   }, [user]);
 
-  const handleCopy = async (text: string) => {
+  const handleCopy = async (text: string, target: 'eft' | 'ref' = 'eft') => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopyStatus('Copied!');
-      setTimeout(() => setCopyStatus(null), 2000);
+      if (target === 'ref') {
+        setRefCopyStatus('Copied!');
+        setTimeout(() => setRefCopyStatus(null), 2000);
+      } else {
+        setCopyStatus('Copied!');
+        setTimeout(() => setCopyStatus(null), 2000);
+      }
     } catch {
-      setCopyStatus('Copy failed');
-      setTimeout(() => setCopyStatus(null), 2000);
+      if (target === 'ref') {
+        setRefCopyStatus('Copy failed');
+        setTimeout(() => setRefCopyStatus(null), 2000);
+      } else {
+        setCopyStatus('Copy failed');
+        setTimeout(() => setCopyStatus(null), 2000);
+      }
     }
   };
 
@@ -179,6 +187,12 @@ const Dashboard: React.FC = () => {
 
   if (loading || fetching || bankLoading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
   if (!user) return null;
+
+  // Referral link
+  const referralCode = user?.profile?.referralCode;
+  const referralUrl = referralCode
+    ? `${window.location.origin}/signup?ref=${encodeURIComponent(referralCode)}`
+    : '';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -195,7 +209,30 @@ const Dashboard: React.FC = () => {
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
-        <p className="text-gray-600 mb-4">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
+        <p className="text-gray-600 mb-2">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
+
+        {/* Referral Link Row */}
+        {referralCode && (
+          <div className="p-2 rounded bg-green-50 border border-green-200 flex items-center gap-3 mb-4">
+            <span className="text-sm text-green-800 font-semibold">
+              Invite friends: 
+            </span>
+            <input
+              value={referralUrl}
+              readOnly
+              className="px-2 py-1 border rounded bg-white text-xs font-mono w-72"
+              style={{ outline: 0 }}
+              onFocus={(e) => e.target.select()}
+            />
+            <button
+              className="px-2 py-1 text-xs bg-green-600 text-white rounded"
+              onClick={() => handleCopy(referralUrl, "ref")}
+            >
+              Copy
+            </button>
+            {refCopyStatus && <span className="ml-2 text-xs text-gray-500">{refCopyStatus}</span>}
+          </div>
+        )}
 
         <div className="flex gap-3 mb-6">
           <Link to="/banking" className="px-4 py-2 bg-white border rounded shadow text-sm">Manage Payment Details</Link>
@@ -218,6 +255,7 @@ const Dashboard: React.FC = () => {
             )}
           </div>
 
+          {/* (leave rest of payment details and investments unchanged) */}
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold text-green-600 mb-2">Payment details</h3>
 
