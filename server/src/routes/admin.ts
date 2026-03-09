@@ -99,7 +99,6 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
         const levelDef = REFERRAL_LEVELS[levelIndex];
         const earnerId = currentUserId;
 
-        // create a commission entry
         const amount = investment.amountRand * levelDef.pct;
         commissionCreates.push(prisma.referralCommission.create({
           data: {
@@ -111,14 +110,12 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
           }
         }));
 
-        // walk up the referral chain
         const refProfile = await prisma.profile.findUnique({ where: { userId: currentUserId } });
         currentUserId = refProfile?.referredBy ?? null;
         levelIndex += 1;
       }
 
       const updated = await prisma.$transaction(async (tx) => {
-        // update investment
         const inv = await tx.investment.update({
           where: { id: investment.id },
           data: {
@@ -128,7 +125,6 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
           },
         });
 
-        // execute commission creates
         for (const pc of commissionCreates) {
           await pc;
         }
@@ -329,10 +325,12 @@ router.get('/dashboard', requireAdmin, async (_req: Request, res: Response) => {
 /**
  * POST /api/admin/run-accrual
  * Manual trigger for accrual. Protected by requireAdmin.
+ * Accepts optional JSON body { force: true } or query ?force=true to bypass the 23-hour guard.
  */
-router.post('/run-accrual', requireAdmin, async (_req: Request, res: Response) => {
+router.post('/run-accrual', requireAdmin, async (req: Request, res: Response) => {
   try {
-    const result: AccrualResult = await runAccrual();
+    const force = Boolean(req.body?.force ?? req.query?.force === 'true');
+    const result: AccrualResult = await runAccrual({ force });
     return res.json({ ok: true, message: 'Accrual run triggered', result });
   } catch (err) {
     console.error('admin/run-accrual error', err);
