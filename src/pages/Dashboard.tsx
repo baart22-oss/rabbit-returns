@@ -1,19 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { api } from '../lib/client';
+import { api, authHeaders } from '../lib/client';
+import { buildUrl } from '../lib/api-utils';
 import { PLATFORM_EFT } from '../lib/eft';
 
 const Dashboard = () => {
   const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
+
   const [investments, setInvestments] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [fetching, setFetching] = useState(true);
+
   const [balance, setBalance] = useState<{ investmentsSum: number; commissionsSum: number; totalBalance: number } | null>(null);
   const [banking, setBanking] = useState<any | null>(null);
   const [bankLoading, setBankLoading] = useState(true);
+
+  // Basic UI state for copying EFT
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate('/auth');
@@ -21,23 +27,63 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (!user) return;
+
     setFetching(true);
-    Promise.all([
-      api.investments.list(),
-      api.withdrawals.list(),
-      api.raffle.tickets(),
-      api.banking.balance()
-    ])
-      .then(([inv, wd, tk, bal]) => {
+
+    (async () => {
+      try {
+        // Use allSettled so failed balance endpoint won't block other data
+        const results = await Promise.allSettled([
+          api.investments.list(),
+          api.withdrawals.list(),
+          api.raffle.tickets(),
+          api.banking.balance(),
+        ]);
+
+        const inv = results[0].status === 'fulfilled' ? results[0].value : [];
+        const wd = results[1].status === 'fulfilled' ? results[1].value : [];
+        const tk = results[2].status === 'fulfilled' ? results[2].value : [];
+        const balRes = results[3];
+
         setInvestments(Array.isArray(inv) ? inv : []);
         setWithdrawals(Array.isArray(wd) ? wd : []);
         setTickets(Array.isArray(tk) ? tk : []);
-        setBalance(bal ?? null);
-      })
-      .catch((err) => {
-        console.error('Dashboard fetch error', err);
-      })
-      .finally(() => setFetching(false));
+
+        if (balRes && balRes.status === 'fulfilled' && balRes.value) {
+          setBalance(balRes.value);
+        } else {
+          // Fallback: compute investmentsSum from investments.totalEarned
+          const investmentsSum = (Array.isArray(inv) ? inv : []).reduce((acc, i) => acc + (Number(i.totalEarned) || 0), 0);
+
+          // Try to fetch referral summary (optional fallback). If it fails, commissionsSum stays 0.
+          let commissionsSum = 0;
+          try {
+            const r = await fetch(buildUrl('/referrals'), { headers: authHeaders() });
+            if (r.ok) {
+              const json = await r.json();
+              commissionsSum = Number(json?.total) || 0;
+            }
+          } catch (err) {
+            // ignore, leave commissionsSum = 0
+            console.warn('Referral summary fallback failed', err);
+          }
+
+          setBalance({
+            investmentsSum,
+            commissionsSum,
+            totalBalance: investmentsSum + commissionsSum,
+          });
+        }
+      } catch (err) {
+        console.error('Dashboard aggregated fetch error', err);
+        setInvestments([]);
+        setWithdrawals([]);
+        setTickets([]);
+        setBalance({ investmentsSum: 0, commissionsSum: 0, totalBalance: 0 });
+      } finally {
+        setFetching(false);
+      }
+    })();
   }, [user]);
 
   useEffect(() => {
@@ -46,12 +92,23 @@ const Dashboard = () => {
     api.banking.get()
       .then(b => setBanking(b || null))
       .catch(err => {
-        // 404 means user has no saved banking — that's OK
+        // 404: no saved banking for this user — that's expected sometimes
         console.info('No saved banking or failed to load', err);
         setBanking(null);
       })
       .finally(() => setBankLoading(false));
   }, [user]);
+
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyStatus('Copied!');
+      setTimeout(() => setCopyStatus(null), 2000);
+    } catch {
+      setCopyStatus('Copy failed');
+      setTimeout(() => setCopyStatus(null), 2000);
+    }
+  };
 
   if (loading || fetching || bankLoading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
   if (!user) return null;
@@ -77,7 +134,21 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Payment details card */}
+          {/* Balance card */}
+          <div className="bg-white rounded-xl shadow p-6">
+            <h3 className="text-lg font-bold text-green-600 mb-2">My Balance</h3>
+            {balance ? (
+              <>
+                <div className="text-sm text-gray-600 mb-2">Investment earnings: <strong>R{balance.investmentsSum.toFixed(2)}</strong></div>
+                <div className="text-sm text-gray-600 mb-2">Referral commissions: <strong>R{balance.commissionsSum.toFixed(2)}</strong></div>
+                <div className="text-xl font-bold text-gray-800 mt-2">Available: R{balance.totalBalance.toFixed(2)}</div>
+              </>
+            ) : (
+              <div className="text-sm text-gray-500">Balance unavailable</div>
+            )}
+          </div>
+
+          {/* Payment details / platform EFT (PLATFORM_EFT imported from frontend file only) */}
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold text-green-600 mb-2">Payment details</h3>
 
@@ -103,17 +174,27 @@ const Dashboard = () => {
               </>
             )}
 
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Platform EFT (where payments should be sent)</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Platform EFT (frontend copy)</h4>
             <div>
               <p className="text-sm"><strong>Beneficiary:</strong> {PLATFORM_EFT.beneficiaryName}</p>
               <p className="text-sm"><strong>Bank:</strong> {PLATFORM_EFT.bank}</p>
-              <p className="text-sm"><strong>Account no:</strong> {PLATFORM_EFT.accountNumber}</p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm"><strong>Account no:</strong> {PLATFORM_EFT.accountNumber}</p>
+                <button
+                  onClick={() => handleCopy(PLATFORM_EFT.accountNumber)}
+                  className="text-xs bg-gray-100 px-2 py-1 rounded"
+                >
+                  Copy
+                </button>
+              </div>
               <p className="text-sm"><strong>Branch code:</strong> {PLATFORM_EFT.branchCode}</p>
               {PLATFORM_EFT.reference && <p className="text-sm"><strong>Reference:</strong> {PLATFORM_EFT.reference}</p>}
-              <p className="text-xs text-gray-500 mt-2">Use the platform reference so admins can match your payment to your investment.</p>
+              {copyStatus && <p className="text-xs text-gray-500 mt-2">{copyStatus}</p>}
+              <p className="text-xs text-gray-500 mt-2">NOTE: Platform EFT values are read from a frontend file (src/lib/eft.ts) — not fetched from Render.</p>
             </div>
           </div>
 
+          {/* Investments summary */}
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold text-green-600 mb-2">My Investments</h3>
             {investments.length === 0 ? <p className="text-gray-400">No investments yet.</p> : (
@@ -121,25 +202,15 @@ const Dashboard = () => {
                 {investments.map(inv => (
                   <li key={inv.id} className="border-b border-gray-100 pb-2">
                     <div className="flex items-center justify-between">
-                      <span>{inv.packageName}</span>
-                      <span className="text-green-700 font-bold">R{inv.amountRand}</span>
-                      <span className="text-xs">{inv.status}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="bg-white rounded-xl shadow p-6">
-            <h3 className="text-lg font-bold text-green-600 mb-2">Withdrawals</h3>
-            {withdrawals.length === 0 ? <p className="text-gray-400">No withdrawals yet.</p> : (
-              <ul className="space-y-2">
-                {withdrawals.map(w => (
-                  <li key={w.id} className="border-b border-gray-100 pb-2">
-                    <div className="flex items-center justify-between">
-                      <span>R{w.amountRand}</span>
-                      <span className="text-xs">{w.status}</span>
+                      <div>
+                        <div className="text-sm font-medium">{inv.packageName}</div>
+                        <div className="text-xs text-gray-500">Started: {inv.startedAt ? new Date(inv.startedAt).toLocaleDateString() : '—'}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-green-700 font-bold">R{inv.amountRand}</div>
+                        <div className="text-xs text-gray-500">Earned: R{(inv.totalEarned ?? 0).toFixed(2)}</div>
+                        <div className="text-xs mt-1">{inv.status}</div>
+                      </div>
                     </div>
                   </li>
                 ))}
