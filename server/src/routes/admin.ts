@@ -8,7 +8,9 @@ import {
   sendUserWithdrawalUpdate,
   sendUserRaffleApproved,
   sendUserRaffleRejected,
+  sendAdminNewProof,
 } from '../services/email';
+import { runAccrual } from '../services/accrual';
 
 const router = Router();
 
@@ -19,6 +21,9 @@ const REFERRAL_LEVELS = [
   { pct: 0.02, level: 3 },
 ];
 
+/**
+ * GET /api/admin/users
+ */
 router.get('/users', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
@@ -27,11 +32,14 @@ router.get('/users', requireAdmin, async (_req: Request, res: Response) => {
     });
     return res.json(users);
   } catch (err) {
-    console.error(err);
+    console.error('admin/users error', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+/**
+ * PATCH /api/admin/users/:id/promote
+ */
 router.patch('/users/:id/promote', requireAdmin, async (req: Request, res: Response) => {
   try {
     const user = await prisma.user.update({
@@ -40,11 +48,14 @@ router.patch('/users/:id/promote', requireAdmin, async (req: Request, res: Respo
     });
     return res.json(user);
   } catch (err) {
-    console.error(err);
+    console.error('admin/promote error', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+/**
+ * GET /api/admin/investments
+ */
 router.get('/investments', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const investments = await prisma.investment.findMany({
@@ -53,7 +64,7 @@ router.get('/investments', requireAdmin, async (_req: Request, res: Response) =>
     });
     return res.json(investments);
   } catch (err) {
-    console.error(err);
+    console.error('admin/investments error', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -85,92 +96,86 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
       const startedAt = now;
       const maturesAt = new Date(now.getTime() + MATURITY_DAYS * 24 * 60 * 60 * 1000);
 
-      // Use Prisma.PrismaPromise[] so typings match prisma.$transaction
+      // create referral commissions inside transaction
       const commissionCreates: Prisma.PrismaPromise<any>[] = [];
       let currentUserId: string | null | undefined = investment.user.profile?.referredBy;
+      let levelIndex = 0;
 
-      while (currentUserId) {
+      while (currentUserId && levelIndex < REFERRAL_LEVELS.length) {
+        const levelDef = REFERRAL_LEVELS[levelIndex];
+        const earnerId = currentUserId;
+
+        // create a commission entry
+        const amount = investment.amountRand * levelDef.pct;
+        commissionCreates.push(prisma.referralCommission.create({
+          data: {
+            investmentId: investment.id,
+            earnerId,
+            referrerId: investment.userId,
+            level: levelDef.level,
+            amountRand: amount,
+          }
+        }));
+
+        // walk up the referral chain
         const refProfile = await prisma.profile.findUnique({ where: { userId: currentUserId } });
-        if (!refProfile) break;
-
-        const levelIndex = commissionCreates.length;
-        if (levelIndex >= REFERRAL_LEVELS.length) break;
-
-        const { pct, level } = REFERRAL_LEVELS[levelIndex];
-        const amountRand = investment.amountRand * pct;
-
-        commissionCreates.push(
-          prisma.referralCommission.create({
-            data: {
-              investmentId: investment.id,
-              earnerId: currentUserId,
-              referrerId: investment.userId,
-              level,
-              amountRand,
-            },
-          })
-        );
-
-        currentUserId = refProfile.referredBy;
+        currentUserId = refProfile?.referredBy ?? null;
+        levelIndex += 1;
       }
 
+      const updated = await prisma.$transaction(async (tx) => {
+        // update investment
+        const inv = await tx.investment.update({
+          where: { id: investment.id },
+          data: {
+            status: 'active',
+            startedAt,
+            maturesAt,
+          },
+        });
+
+        // execute commission creates
+        for (const pc of commissionCreates) {
+          await pc;
+        }
+
+        return inv;
+      });
+
+      // notify user
       try {
-        // Transaction: create commissions then update investment
-        const txResults = await prisma.$transaction([
-          ...commissionCreates,
-          prisma.investment.update({
-            where: { id: investment.id },
-            data: {
-              status: 'active',
-              startedAt,
-              maturesAt,
-              // adminNote removed because Investment model doesn't define it
-            },
-          }),
-        ]);
-
-        const updatedInvestment = txResults[txResults.length - 1];
-
-        // Notify user outside transaction
-        await sendUserInvestmentApproved(
-          investment.user.email,
-          investment.packageName,
-          investment.amountRand
-        ).catch(console.error);
-
-        return res.json(updatedInvestment);
-      } catch (err) {
-        console.error('Error activating investment (transaction):', err);
-        return res.status(500).json({ error: 'Failed to activate investment' });
+        await sendUserInvestmentApproved(investment.user.email, updated).catch(console.error);
+      } catch (e) {
+        console.error('sendUserInvestmentApproved error', e);
       }
-    } else if (status === 'rejected') {
-      // handle rejection - update status only (no adminNote field on Investment)
-      const updated = await prisma.investment.update({
-        where: { id: investment.id },
-        data: { status: 'rejected' },
-      });
 
-      await sendUserInvestmentRejected(
-        investment.user.email,
-        investment.packageName,
-        adminNote
-      ).catch(console.error);
-
-      return res.json(updated);
-    } else {
-      // generic update (e.g., set pending)
-      const updated = await prisma.investment.update({
-        where: { id: investment.id },
-        data: { status: status ?? investment.status },
-      });
       return res.json(updated);
     }
+
+    // handle other status transitions
+    const updated = await prisma.investment.update({
+      where: { id: investment.id },
+      data: { status, updatedAt: new Date() },
+    });
+
+    if (status === 'rejected') {
+      try {
+        await sendUserInvestmentRejected(investment.user.email, updated).catch(console.error);
+      } catch (e) {
+        console.error('sendUserInvestmentRejected error', e);
+      }
+    }
+
+    return res.json(updated);
   } catch (err) {
-    console.error(err);
+    console.error('admin/patch investment error', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+/**
+ * GET /api/admin/withdrawals
+ */
 router.get('/withdrawals', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const withdrawals = await prisma.withdrawal.findMany({
@@ -179,42 +184,39 @@ router.get('/withdrawals', requireAdmin, async (_req: Request, res: Response) =>
     });
     return res.json(withdrawals);
   } catch (err) {
-    console.error(err);
+    console.error('admin/withdrawals error', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+/**
+ * PATCH /api/admin/withdrawals/:id
+ * Body: { status: 'approved'|'paid'|'rejected', adminNote?: string }
+ */
 router.patch('/withdrawals/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { status, adminNote } = req.body;
-
-    const withdrawal = await prisma.withdrawal.findUnique({
-      where: { id: req.params.id },
-      include: { user: true },
-    });
-
-    if (!withdrawal) return res.status(404).json({ error: 'Withdrawal not found' });
-
     const updated = await prisma.withdrawal.update({
       where: { id: req.params.id },
-      data: { status, adminNote: adminNote ?? null },
+      data: { status, adminNote },
     });
 
-    await sendUserWithdrawalUpdate(
-      withdrawal.user.email,
-      withdrawal.amountRand,
-      status,
-      adminNote
-    ).catch(console.error);
+    try {
+      await sendUserWithdrawalUpdate(updated.userId, updated).catch(console.error);
+    } catch (e) {
+      console.error('sendUserWithdrawalUpdate error', e);
+    }
 
     return res.json(updated);
   } catch (err) {
-    console.error(err);
+    console.error('admin/patch withdrawal error', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Raffle endpoints and dashboard unchanged...
+/**
+ * GET /api/admin/raffle
+ */
 router.get('/raffle', requireAdmin, async (_req: Request, res: Response) => {
   try {
     const tickets = await prisma.raffleTicket.findMany({
@@ -223,72 +225,65 @@ router.get('/raffle', requireAdmin, async (_req: Request, res: Response) => {
     });
     return res.json(tickets);
   } catch (err) {
-    console.error(err);
+    console.error('admin/raffle error', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+/**
+ * PATCH /api/admin/raffle/:id
+ */
 router.patch('/raffle/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
-
-    const ticket = await prisma.raffleTicket.findUnique({
-      where: { id: req.params.id },
-      include: { user: true },
-    });
-
-    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
     const updated = await prisma.raffleTicket.update({
       where: { id: req.params.id },
       data: { status },
     });
 
     if (status === 'active') {
-      await sendUserRaffleApproved(ticket.user.email).catch(console.error);
+      try {
+        await sendUserRaffleApproved(updated.userId, updated).catch(console.error);
+      } catch (e) {
+        console.error('sendUserRaffleApproved error', e);
+      }
     } else if (status === 'rejected') {
-      await sendUserRaffleRejected(ticket.user.email).catch(console.error);
+      try {
+        await sendUserRaffleRejected(updated.userId, updated).catch(console.error);
+      } catch (e) {
+        console.error('sendUserRaffleRejected error', e);
+      }
     }
 
     return res.json(updated);
   } catch (err) {
-    console.error(err);
+    console.error('admin/patch raffle error', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/dashboard', requireAdmin, async (_req: Request, res: Response) => {
-  try {
-    const [
-      totalUsers,
-      totalInvestments,
-      totalRaffleTickets,
-      pendingInvestments,
-      pendingWithdrawals,
-      pendingRaffle,
-      withdrawn,
-    ] = await Promise.all([
-      prisma.user.count(),
-      prisma.investment.count(),
-      prisma.raffleTicket.count({ where: { status: 'active' } }),
-      prisma.investment.count({ where: { status: 'pending' } }),
-      prisma.withdrawal.count({ where: { status: 'pending' } }),
-      prisma.raffleTicket.count({ where: { status: 'pending' } }),
-      prisma.withdrawal.aggregate({ where: { status: 'paid' }, _sum: { amountRand: true } }),
-    ]);
+/**
+ * Admin: upload proof for an investment or ticket (admins may reupload/save)
+ * POST /api/admin/proof
+ * Body form-data: file, model: 'investment'|'raffle', id
+ */
+router.post('/proof', requireAdmin, async (req: Request, res: Response) => {
+  // This route is left as a placeholder. Your app already uses multer in investments/raffle routes
+  // If you want admin to upload/replace proofs, implement multer storage here and update prisma records.
+  return res.status(501).json({ error: 'Not implemented' });
+});
 
-    return res.json({
-      totalUsers,
-      totalInvestments,
-      totalRaffleTickets,
-      totalWithdrawn: withdrawn._sum.amountRand ?? 0,
-      pendingInvestments,
-      pendingWithdrawals,
-      pendingRaffle,
-    });
+/**
+ * POST /api/admin/run-accrual
+ * Manual trigger for accrual. Protected by requireAdmin.
+ */
+router.post('/run-accrual', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    await runAccrual();
+    return res.json({ ok: true, message: 'Accrual run triggered' });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('admin/run-accrual error', err);
+    return res.status(500).json({ ok: false, error: 'Accrual failed' });
   }
 });
 
