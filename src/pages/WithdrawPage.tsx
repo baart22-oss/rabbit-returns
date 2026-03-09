@@ -1,22 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/client';
 import { useAuth } from '../lib/auth';
 
+/**
+ * WithdrawPage
+ * - Fetches user's saved banking details and displays them
+ * - Allows user to use saved banking details or enter new details
+ * - Submits withdrawal request to api.withdrawals.submit
+ */
 export default function WithdrawPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
+  // Saved banking (from server)
+  const [savedBanking, setSavedBanking] = useState<any | null>(null);
+  const [loadingBank, setLoadingBank] = useState(true);
+  const [useSaved, setUseSaved] = useState(true);
+
+  // Form fields (used when not using saved banking or to confirm)
   const [amountRand, setAmountRand] = useState('');
   const [bankName, setBankName] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [branchCode, setBranchCode] = useState('');
   const [accountType, setAccountType] = useState('CHEQUE');
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [loadingBank, setLoadingBank] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) navigate('/auth');
@@ -28,15 +40,23 @@ export default function WithdrawPage() {
       try {
         const b = await api.banking.get();
         if (b) {
+          setSavedBanking(b);
+          // Prefill the editable fields so user can adjust if needed
           setAccountHolder(b.accountHolder || '');
           setBankName(b.bankName || '');
           setAccountNumber(b.accountNumber || '');
           setBranchCode(b.branchCode || '');
           setAccountType(b.accountType || 'CHEQUE');
+          setUseSaved(true);
+        } else {
+          setSavedBanking(null);
+          setUseSaved(false);
         }
       } catch (err) {
-        // 404 (no saved banking) is okay — user will fill in form
+        // 404 means no saved banking; allow user to fill form
         console.info('No saved banking or failed to load', err);
+        setSavedBanking(null);
+        setUseSaved(false);
       } finally {
         setLoadingBank(false);
       }
@@ -49,21 +69,50 @@ export default function WithdrawPage() {
     setError('');
     setSuccessMsg('');
     setSubmitting(true);
+
     try {
-      if (!amountRand || Number.isNaN(Number(amountRand)) || Number(amountRand) <= 0) {
+      const amount = Number(amountRand);
+      if (!amountRand || Number.isNaN(amount) || amount <= 0) {
         throw new Error('Enter a valid withdrawal amount');
       }
+
+      // Decide which bank details to use
+      const payloadBank = useSaved && savedBanking
+        ? {
+            bankName: savedBanking.bankName,
+            accountHolder: savedBanking.accountHolder,
+            accountNumber: savedBanking.accountNumber,
+            branchCode: savedBanking.branchCode,
+            accountType: savedBanking.accountType ?? 'CHEQUE',
+          }
+        : {
+            bankName,
+            accountHolder,
+            accountNumber,
+            branchCode,
+            accountType,
+          };
+
+      // Basic validation of bank fields for EFT
+      if (!payloadBank.bankName || !payloadBank.accountHolder || !payloadBank.accountNumber || !payloadBank.branchCode) {
+        throw new Error('Please provide complete banking details (bank, account holder, account number, branch code)');
+      }
+
       const payload = {
-        amountRand: Number(amountRand),
-        bankName,
-        accountHolder,
-        accountNumber,
-        branchCode,
-        accountType,
+        amountRand: amount,
+        bankName: payloadBank.bankName,
+        accountHolder: payloadBank.accountHolder,
+        accountNumber: payloadBank.accountNumber,
+        branchCode: payloadBank.branchCode,
+        accountType: payloadBank.accountType,
       };
-      const res = await api.withdrawals.submit(payload);
+
+      await api.withdrawals.submit(payload);
+
       setSuccessMsg('Withdrawal request submitted.');
-      // optionally navigate to dashboard
+      // Optionally clear form
+      setAmountRand('');
+      // redirect back to dashboard after short delay
       setTimeout(() => navigate('/dashboard'), 1200);
     } catch (err: any) {
       console.error('Withdraw failed', err);
@@ -91,44 +140,93 @@ export default function WithdrawPage() {
         {error && <div className="p-3 mb-4 bg-red-50 text-red-700 rounded">{error}</div>}
         {successMsg && <div className="p-3 mb-4 bg-green-50 text-green-700 rounded">{successMsg}</div>}
 
-        <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow max-w-md">
-          <label className="block mb-2">
-            <span className="text-sm font-medium">Amount (ZAR)</span>
-            <input value={amountRand} onChange={e => setAmountRand(e.target.value)} type="number" step="0.01" className="mt-1 w-full border rounded px-3 py-2" />
-          </label>
+        {/* Saved banking display */}
+        {savedBanking ? (
+          <div className="bg-white border rounded p-4 mb-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-semibold">Saved banking details</h3>
+                <p className="text-sm text-gray-600">These details will be used if you choose "Use saved details".</p>
 
-          <label className="block mb-2">
-            <span className="text-sm font-medium">Account holder</span>
-            <input value={accountHolder} onChange={e => setAccountHolder(e.target.value)} className="mt-1 w-full border rounded px-3 py-2" />
-          </label>
+                <div className="mt-3 text-sm text-gray-700">
+                  <div><strong>Account holder:</strong> {savedBanking.accountHolder}</div>
+                  <div><strong>Bank:</strong> {savedBanking.bankName}</div>
+                  <div><strong>Account no:</strong> {savedBanking.accountNumber}</div>
+                  <div><strong>Branch code:</strong> {savedBanking.branchCode}</div>
+                  <div><strong>Account type:</strong> {savedBanking.accountType}</div>
+                </div>
+              </div>
 
-          <label className="block mb-2">
-            <span className="text-sm font-medium">Bank name</span>
-            <input value={bankName} onChange={e => setBankName(e.target.value)} className="mt-1 w-full border rounded px-3 py-2" />
-          </label>
+              <div className="ml-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={useSaved}
+                    onChange={(e) => setUseSaved(e.target.checked)}
+                    className="form-checkbox h-4 w-4"
+                  />
+                  Use saved details
+                </label>
+                <div className="mt-3">
+                  <Link to="/banking" className="text-xs text-green-700 hover:underline">Edit saved banking</Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
-          <label className="block mb-2">
-            <span className="text-sm font-medium">Account number</span>
-            <input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2" />
-          </label>
+        <form className="bg-white rounded p-6" onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Amount (ZAR)</label>
+            <input
+              type="number"
+              min="1"
+              step="0.01"
+              value={amountRand}
+              onChange={(e) => setAmountRand(e.target.value)}
+              className="mt-1 block w-full border rounded px-3 py-2"
+              placeholder="Enter amount in ZAR"
+              required
+            />
+          </div>
 
-          <label className="block mb-2">
-            <span className="text-sm font-medium">Branch code</span>
-            <input value={branchCode} onChange={e => setBranchCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2" />
-          </label>
+          {/* If user is not using saved details, show editable bank fields */}
+          {!useSaved && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Account holder</label>
+                  <input value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} className="mt-1 block w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Bank name</label>
+                  <input value={bankName} onChange={(e) => setBankName(e.target.value)} className="mt-1 block w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Account number</label>
+                  <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="mt-1 block w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Branch code</label>
+                  <input value={branchCode} onChange={(e) => setBranchCode(e.target.value)} className="mt-1 block w-full border rounded px-3 py-2" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Account type</label>
+                  <select value={accountType} onChange={(e) => setAccountType(e.target.value)} className="mt-1 block w-48 border rounded px-3 py-2">
+                    <option value="CHEQUE">CHEQUE</option>
+                    <option value="SAVINGS">SAVINGS</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
 
-          <label className="block mb-4">
-            <span className="text-sm font-medium">Account type</span>
-            <select value={accountType} onChange={e => setAccountType(e.target.value)} className="mt-1 w-full border rounded px-3 py-2">
-              <option value="CHEQUE">CHEQUE</option>
-              <option value="SAVINGS">SAVINGS</option>
-              <option value="TRANSMISSION">TRANSMISSION</option>
-            </select>
-          </label>
-
-          <button type="submit" disabled={submitting} className="w-full bg-green-600 text-white py-2 rounded">
-            {submitting ? 'Submitting…' : 'Request Withdrawal'}
-          </button>
+          <div className="mt-6 flex items-center gap-3">
+            <button type="submit" disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-60">
+              {submitting ? 'Submitting…' : 'Submit withdrawal'}
+            </button>
+            <Link to="/dashboard" className="text-sm text-gray-600">Cancel</Link>
+          </div>
         </form>
       </main>
     </div>
