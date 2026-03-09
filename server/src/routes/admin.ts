@@ -10,7 +10,7 @@ import {
   sendUserRaffleRejected,
   sendAdminNewProof,
 } from '../services/email';
-import { runAccrual } from '../services/accrual';
+import { runAccrual, AccrualResult } from '../services/accrual';
 
 const router = Router();
 
@@ -72,12 +72,6 @@ router.get('/investments', requireAdmin, async (_req: Request, res: Response) =>
 /**
  * PATCH /api/admin/investments/:id
  * Body: { status: 'active' | 'rejected' | 'pending', adminNote?: string }
- *
- * When activating we:
- *  - compute startedAt, maturesAt
- *  - create referral commissions for referral chain
- *  - update investment status/start/matures
- * All done in a transaction to avoid partial state.
  */
 router.patch('/investments/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
@@ -197,7 +191,6 @@ router.get('/withdrawals', requireAdmin, async (_req: Request, res: Response) =>
 
 /**
  * PATCH /api/admin/withdrawals/:id
- * Body: { status: 'approved'|'paid'|'rejected', adminNote?: string }
  */
 router.patch('/withdrawals/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
@@ -258,7 +251,6 @@ router.patch('/raffle/:id', requireAdmin, async (req: Request, res: Response) =>
       if (status === 'active' && userEmail) {
         await sendUserRaffleApproved(userEmail).catch(console.error);
       } else if (status === 'rejected' && userEmail) {
-        // optionally allow a reason in req.body.reason
         const reason = (req.body as any).reason;
         await sendUserRaffleRejected(userEmail, reason).catch(console.error);
       }
@@ -275,13 +267,63 @@ router.patch('/raffle/:id', requireAdmin, async (req: Request, res: Response) =>
 
 /**
  * Admin: upload proof for an investment or ticket (admins may reupload/save)
- * POST /api/admin/proof
- * Body form-data: file, model: 'investment'|'raffle', id
  */
 router.post('/proof', requireAdmin, async (req: Request, res: Response) => {
-  // This route is left as a placeholder. Your app already uses multer in investments/raffle routes
-  // If you want admin to upload/replace proofs, implement multer storage here and update prisma records.
   return res.status(501).json({ error: 'Not implemented' });
+});
+
+/**
+ * GET /api/admin/dashboard
+ * Summary information for admin overview.
+ */
+router.get('/dashboard', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const totalUsers = await prisma.user.count();
+    const totalInvestments = await prisma.investment.count();
+    const activeInvestments = await prisma.investment.count({ where: { status: 'active' }});
+    const pendingInvestments = await prisma.investment.count({ where: { status: 'pending' }});
+    const totalWithdrawals = await prisma.withdrawal.count();
+    const totalRaffle = await prisma.raffleTicket.count();
+
+    // sums
+    const investedSumRes = await prisma.investment.aggregate({ _sum: { amountRand: true } });
+    const totalInvested = investedSumRes._sum.amountRand ?? 0;
+
+    const totalEarnedRes = await prisma.investment.aggregate({ _sum: { totalEarned: true } });
+    const totalEarned = totalEarnedRes._sum.totalEarned ?? 0;
+
+    const totalCommissionsRes = await prisma.referralCommission.aggregate({ _sum: { amountRand: true } });
+    const totalCommissions = totalCommissionsRes._sum.amountRand ?? 0;
+
+    const recentUsers = await prisma.user.findMany({
+      include: { profile: true },
+      orderBy: { createdAt: 'desc' },
+      take: 8,
+    });
+
+    const recentInvestments = await prisma.investment.findMany({
+      include: { user: { include: { profile: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 12,
+    });
+
+    return res.json({
+      totalUsers,
+      totalInvestments,
+      activeInvestments,
+      pendingInvestments,
+      totalWithdrawals,
+      totalRaffle,
+      totalInvested,
+      totalEarned,
+      totalCommissions,
+      recentUsers,
+      recentInvestments,
+    });
+  } catch (err) {
+    console.error('admin/dashboard error', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 /**
@@ -290,8 +332,8 @@ router.post('/proof', requireAdmin, async (req: Request, res: Response) => {
  */
 router.post('/run-accrual', requireAdmin, async (_req: Request, res: Response) => {
   try {
-    await runAccrual();
-    return res.json({ ok: true, message: 'Accrual run triggered' });
+    const result: AccrualResult = await runAccrual();
+    return res.json({ ok: true, message: 'Accrual run triggered', result });
   } catch (err) {
     console.error('admin/run-accrual error', err);
     return res.status(500).json({ ok: false, error: 'Accrual failed' });
