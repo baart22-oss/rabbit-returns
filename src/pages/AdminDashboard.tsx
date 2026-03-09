@@ -46,13 +46,39 @@ const AdminDashboard = () => {
     } catch {}
   };
 
-  const updateWithdrawal = async (id: string, status: string, adminNote?: string) => {
-    try {
-      const updated = await api.admin.updateWithdrawal(id, { status, adminNote });
-      setWithdrawals(prev => prev.map(w => (w.id === id ? updated : w)));
-    } catch {}
-  };
+// Replace the existing updateWithdrawal function with this implementation
 
+const updateWithdrawal = async (id: string, status: string, adminNote?: string) => {
+  try {
+    // Optimistically update UI so the select changes immediately
+    setWithdrawals(prev => prev.map(w => (w.id === id ? { ...w, status } : w)));
+
+    // Call server to persist change
+    const updated = await api.admin.updateWithdrawal(id, { status, adminNote });
+
+    // Ensure the returned record is used to update local list
+    setWithdrawals(prev => prev.map(w => (w.id === updated.id ? updated : w)));
+
+    // Refresh admin overview & withdrawals to ensure totals & ordering are correct
+    try {
+      const [s, freshWithdrawals] = await Promise.all([api.admin.dashboard(), api.admin.withdrawals()]);
+      if (s) setStats(s);
+      if (Array.isArray(freshWithdrawals)) setWithdrawals(freshWithdrawals);
+    } catch (refreshErr) {
+      // non-fatal: keep the updated item in the UI but log the refresh error
+      console.warn('Failed to refresh admin data after updating withdrawal', refreshErr);
+    }
+  } catch (err: any) {
+    console.error('admin updateWithdrawal error', err);
+    // Roll back optimistic update by re-fetching withdrawals
+    try {
+      const fresh = await api.admin.withdrawals();
+      if (Array.isArray(fresh)) setWithdrawals(fresh);
+    } catch (refetchErr) {
+      console.warn('Failed to refetch withdrawals after failed update', refetchErr);
+    }
+  }
+};
   const updateRaffle = async (id: string, status: string) => {
     try {
       const updated = await api.admin.updateRaffle(id, { status });
