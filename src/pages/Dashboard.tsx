@@ -5,6 +5,11 @@ import { api, authHeaders } from '../lib/client';
 import { buildUrl } from '../lib/api-utils';
 import { PLATFORM_EFT } from '../lib/eft';
 
+async function safeFetchJson(url: string, opts: RequestInit = {}) {
+  const res = await fetch(url, opts);
+  try { return await res.json(); } catch { return {}; }
+}
+
 const Dashboard = () => {
   const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -17,8 +22,6 @@ const Dashboard = () => {
   const [balance, setBalance] = useState<{ investmentsSum: number; commissionsSum: number; totalBalance: number } | null>(null);
   const [banking, setBanking] = useState<any | null>(null);
   const [bankLoading, setBankLoading] = useState(true);
-
-  // Basic UI state for copying EFT
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,23 +30,21 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (!user) return;
-
     setFetching(true);
 
     (async () => {
       try {
-        // Use allSettled so failed balance endpoint won't block other data
-        const results = await Promise.allSettled([
-          api.investments.list(),
-          api.withdrawals.list(),
-          api.raffle.tickets(),
-          api.banking.balance(),
-        ]);
+        // Try to use client API; if functions missing, fall back to direct fetch
+        const investmentsPromise = api?.investments?.list ? api.investments.list() : safeFetchJson(buildUrl('/investments'), { headers: authHeaders() });
+        const withdrawalsPromise = api?.withdrawals?.list ? api.withdrawals.list() : safeFetchJson(buildUrl('/withdrawals'), { headers: authHeaders() });
+        const ticketsPromise = api?.raffle?.tickets ? api.raffle.tickets() : safeFetchJson(buildUrl('/raffle/tickets'), { headers: authHeaders() });
+        const balancePromise = api?.banking?.balance ? api.banking.balance() : safeFetchJson(buildUrl('/banking/balance'), { headers: authHeaders() });
 
-        const inv = results[0].status === 'fulfilled' ? results[0].value : [];
-        const wd = results[1].status === 'fulfilled' ? results[1].value : [];
-        const tk = results[2].status === 'fulfilled' ? results[2].value : [];
-        const balRes = results[3];
+        const [invRes, wdRes, tkRes, balRes] = await Promise.allSettled([investmentsPromise, withdrawalsPromise, ticketsPromise, balancePromise]);
+
+        const inv = invRes.status === 'fulfilled' ? invRes.value : [];
+        const wd = wdRes.status === 'fulfilled' ? wdRes.value : [];
+        const tk = tkRes.status === 'fulfilled' ? tkRes.value : [];
 
         setInvestments(Array.isArray(inv) ? inv : []);
         setWithdrawals(Array.isArray(wd) ? wd : []);
@@ -52,27 +53,14 @@ const Dashboard = () => {
         if (balRes && balRes.status === 'fulfilled' && balRes.value) {
           setBalance(balRes.value);
         } else {
-          // Fallback: compute investmentsSum from investments.totalEarned
+          // fallback: compute from investments + referrals if available
           const investmentsSum = (Array.isArray(inv) ? inv : []).reduce((acc, i) => acc + (Number(i.totalEarned) || 0), 0);
-
-          // Try to fetch referral summary (optional fallback). If it fails, commissionsSum stays 0.
           let commissionsSum = 0;
           try {
-            const r = await fetch(buildUrl('/referrals'), { headers: authHeaders() });
-            if (r.ok) {
-              const json = await r.json();
-              commissionsSum = Number(json?.total) || 0;
-            }
-          } catch (err) {
-            // ignore, leave commissionsSum = 0
-            console.warn('Referral summary fallback failed', err);
-          }
-
-          setBalance({
-            investmentsSum,
-            commissionsSum,
-            totalBalance: investmentsSum + commissionsSum,
-          });
+            const refs = await safeFetchJson(buildUrl('/referrals'), { headers: authHeaders() });
+            commissionsSum = Number(refs?.total) || 0;
+          } catch {}
+          setBalance({ investmentsSum, commissionsSum, totalBalance: investmentsSum + commissionsSum });
         }
       } catch (err) {
         console.error('Dashboard aggregated fetch error', err);
@@ -89,10 +77,10 @@ const Dashboard = () => {
   useEffect(() => {
     if (!user) return;
     setBankLoading(true);
-    api.banking.get()
+    // prefer api.banking.get() if available
+    (api?.banking?.get ? api.banking.get() : safeFetchJson(buildUrl('/banking'), { headers: authHeaders() }))
       .then(b => setBanking(b || null))
       .catch(err => {
-        // 404: no saved banking for this user — that's expected sometimes
         console.info('No saved banking or failed to load', err);
         setBanking(null);
       })
@@ -134,7 +122,6 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Balance card */}
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold text-green-600 mb-2">My Balance</h3>
             {balance ? (
@@ -148,7 +135,6 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Payment details / platform EFT (PLATFORM_EFT imported from frontend file only) */}
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold text-green-600 mb-2">Payment details</h3>
 
@@ -180,21 +166,15 @@ const Dashboard = () => {
               <p className="text-sm"><strong>Bank:</strong> {PLATFORM_EFT.bank}</p>
               <div className="flex items-center gap-3">
                 <p className="text-sm"><strong>Account no:</strong> {PLATFORM_EFT.accountNumber}</p>
-                <button
-                  onClick={() => handleCopy(PLATFORM_EFT.accountNumber)}
-                  className="text-xs bg-gray-100 px-2 py-1 rounded"
-                >
-                  Copy
-                </button>
+                <button onClick={() => handleCopy(PLATFORM_EFT.accountNumber)} className="text-xs bg-gray-100 px-2 py-1 rounded">Copy</button>
               </div>
               <p className="text-sm"><strong>Branch code:</strong> {PLATFORM_EFT.branchCode}</p>
               {PLATFORM_EFT.reference && <p className="text-sm"><strong>Reference:</strong> {PLATFORM_EFT.reference}</p>}
               {copyStatus && <p className="text-xs text-gray-500 mt-2">{copyStatus}</p>}
-              <p className="text-xs text-gray-500 mt-2">NOTE: Platform EFT values are read from a frontend file (src/lib/eft.ts) — not fetched from Render.</p>
+              <p className="text-xs text-gray-500 mt-2">NOTE: Platform EFT values are read from a frontend file (src/lib/eft.ts).</p>
             </div>
           </div>
 
-          {/* Investments summary */}
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="text-lg font-bold text-green-600 mb-2">My Investments</h3>
             {investments.length === 0 ? <p className="text-gray-400">No investments yet.</p> : (
