@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { api, authHeaders } from '../lib/client';
-import { buildUrl } from '../lib/api-utils';
+import { api } from '../lib/client';
 import { proofUrl } from '../lib/urls';
 
 const AdminDashboard = () => {
@@ -21,6 +20,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (!isAdmin) return;
+    setFetching(true);
     Promise.all([
       api.admin.dashboard(),
       api.admin.investments(),
@@ -67,28 +67,27 @@ const AdminDashboard = () => {
     } catch {}
   };
 
-  // Run accrual manually (calls backend POST /api/admin/run-accrual)
+  // Run accrual manually (calls backend POST /api/admin/run-accrual via api client)
   const handleRunAccrual = async () => {
     setRunningAccrual(true);
     setAccrualResult(null);
     try {
-      const res = await fetch(buildUrl('/admin/run-accrual'), {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const errMsg = json?.error || `Server returned ${res.status}`;
-        setAccrualResult(`Failed: ${errMsg}`);
+      const json = await api.admin.runAccrual();
+      // json expected: { ok: true, message: 'Accrual run triggered', result: { updated, matured, skipped } }
+      if (json?.ok && json.result) {
+        const r = json.result;
+        setAccrualResult(`Accrual completed — updated: ${r.updated}, matured: ${r.matured}, skipped: ${r.skipped}`);
       } else {
-        setAccrualResult('Accrual run triggered successfully');
-        // Optionally refresh dashboard stats after accrual
-        try {
-          const s = await api.admin.dashboard();
-          setStats(s);
-        } catch (e) {
-          // ignore refresh errors
-        }
+        setAccrualResult(`Accrual run response: ${JSON.stringify(json)}`);
+      }
+      // refresh admin dashboard data
+      try {
+        const s = await api.admin.dashboard();
+        setStats(s);
+        const inv = await api.admin.investments();
+        setInvestments(Array.isArray(inv) ? inv : []);
+      } catch (e) {
+        // ignore refresh errors
       }
     } catch (err: any) {
       setAccrualResult(`Error: ${err?.message || String(err)}`);
@@ -130,6 +129,7 @@ const AdminDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Admin Dashboard</h1>
+
         {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {tabs.map((tab) => (
@@ -153,11 +153,12 @@ const AdminDashboard = () => {
             {[
               { label: 'Total Users', value: stats.totalUsers },
               { label: 'Total Investments', value: stats.totalInvestments },
-              { label: 'Total Withdrawn', value: `R${stats.totalWithdrawn}` },
-              { label: 'Raffle Tickets', value: stats.totalRaffleTickets },
+              { label: 'Total Invested', value: `R${Number(stats.totalInvested || 0).toFixed(2)}` },
+              { label: 'Total Earned', value: `R${Number(stats.totalEarned || 0).toFixed(2)}` },
+              { label: 'Total Commissions', value: `R${Number(stats.totalCommissions || 0).toFixed(2)}` },
               { label: 'Pending Investments', value: stats.pendingInvestments },
-              { label: 'Pending Withdrawals', value: stats.pendingWithdrawals },
-              { label: 'Pending Raffle', value: stats.pendingRaffle },
+              { label: 'Active Investments', value: stats.activeInvestments },
+              { label: 'Pending Withdrawals', value: stats.totalWithdrawals },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-xl shadow p-5">
                 <p className="text-sm text-gray-500 mb-1">{s.label}</p>
@@ -167,7 +168,8 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Investments */}
+        {/* The remainder of the admin UI (investments / withdrawals / raffle / users) remains unchanged */}
+        {/* Investments tab */}
         {activeTab === 'investments' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
             <table className="w-full text-sm">
@@ -233,7 +235,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Withdrawals */}
+        {/* Withdrawals tab */}
         {activeTab === 'withdrawals' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
             <table className="w-full text-sm">
@@ -280,7 +282,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Raffle */}
+        {/* Raffle tab */}
         {activeTab === 'raffle' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
             <table className="w-full text-sm">
@@ -310,10 +312,7 @@ const AdminDashboard = () => {
                           type="button"
                           onClick={() => {
                             const url = proofUrl(t.proofOfPayment);
-                            if (!url) {
-                              alert('Proof file not available');
-                              return;
-                            }
+                            if (!url) { alert('Proof file not available'); return; }
                             window.open(url, '_blank', 'noopener');
                           }}
                           className="text-blue-600 hover:underline text-xs"
@@ -342,7 +341,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Users */}
+        {/* Users tab */}
         {activeTab === 'users' && (
           <div className="bg-white rounded-xl shadow overflow-x-auto">
             <table className="w-full text-sm">
