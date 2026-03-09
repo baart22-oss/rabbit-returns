@@ -1,4 +1,5 @@
-// --- API Client Utilities & Endpoints ---
+// API client for frontend. Keep this file in sync with backend routes.
+
 export function clearToken() {
   localStorage.removeItem('rabbit_token');
 }
@@ -20,7 +21,6 @@ async function parseJsonSafe(res: Response) {
   try { return await res.json(); } catch { return {}; }
 }
 
-// --- API Client ---
 export const api = {
   auth: {
     login: async (email: string, password: string) => {
@@ -53,7 +53,6 @@ export const api = {
     },
   },
 
-  // Banking endpoints (per-user and balance)
   banking: {
     get: async () => {
       const res = await fetch(buildUrl('/banking'), { headers: authHeaders() });
@@ -104,6 +103,26 @@ export const api = {
         method: 'POST',
         headers: { ...authHeaders() },
         body: formData,
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+  },
+
+  // Withdrawals client: ensure submit endpoint exists
+  withdrawals: {
+    list: async () => {
+      const res = await fetch(buildUrl('/withdrawals'), { headers: authHeaders() });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+    submit: async (body: any) => {
+      const res = await fetch(buildUrl('/withdrawals'), {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
       const data = await parseJsonSafe(res);
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
@@ -218,12 +237,11 @@ export const api = {
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
       return data;
     },
-
-    // NEW: run accrual
-    runAccrual: async () => {
-      const res = await fetch(buildUrl('/admin/run-accrual'), {
+    runAccrual: async (force?: boolean) => {
+      const res = await fetch(buildUrl('/admin/run-accrual') + (force ? '?force=true' : ''), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: !!force }),
       });
       const data = await parseJsonSafe(res);
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
