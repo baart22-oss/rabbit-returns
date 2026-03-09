@@ -155,15 +155,18 @@ const PORT = Number(process.env.PORT || 3000);
     console.log(`Server listening on port ${PORT}`);
   });
 
-  // Run accrual once at startup (helps with testing)
-  runAccrual().catch(err => console.error('Initial accrual error:', err));
+ // Replace the existing cron.schedule(...) block with this
 
-  // Schedule accrual daily at 00:01
-  // '1 0 * * *' => minute=1 hour=0 every day
-  cron.schedule('1 0 * * *', () => {
-    console.log('Running scheduled accrual at 00:01');
-    runAccrual().catch(err => console.error('Scheduled accrual error:', err));
-  });
-})();
+const CRON_TZ = process.env.CRON_TZ || 'Africa/Johannesburg';
 
-export default app;
+// Run accrual once at startup (helps with testing)
+runAccrual().catch(err => console.error('Initial accrual error:', err));
+
+// Schedule accrual daily at 00:01 in the configured timezone
+// '1 0 * * *' => minute=1 hour=0 every day
+cron.schedule('1 0 * * *', () => {
+  console.log(`Running scheduled accrual at 00:01 (${CRON_TZ})`);
+  runAccrual().catch(err => console.error('Scheduled accrual error:', err));
+}, {
+  timezone: CRON_TZ
+});
