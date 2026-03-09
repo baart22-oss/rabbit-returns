@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, authHeaders } from '../lib/client';
@@ -9,6 +9,8 @@ async function safeFetchJson(url: string, opts: RequestInit = {}) {
   const res = await fetch(url, opts);
   try { return await res.json(); } catch { return {}; }
 }
+
+const POLL_INTERVAL_MS = 20_000; // 20s
 
 const Dashboard = () => {
   const { user, loading, isAdmin } = useAuth();
@@ -24,60 +26,92 @@ const Dashboard = () => {
   const [bankLoading, setBankLoading] = useState(true);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
 
+  const pollingRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!loading && !user) navigate('/auth');
   }, [user, loading, navigate]);
 
-  useEffect(() => {
+  const fetchAggregatedData = useCallback(async (opts?: { forceBalance?: boolean }) => {
     if (!user) return;
     setFetching(true);
+    try {
+      // Try to use client API; if functions missing, fall back to direct fetch
+      const investmentsPromise = api?.investments?.list ? api.investments.list() : safeFetchJson(buildUrl('/investments'), { headers: authHeaders() });
+      const withdrawalsPromise = api?.withdrawals?.list ? api.withdrawals.list() : safeFetchJson(buildUrl('/withdrawals'), { headers: authHeaders() });
+      const ticketsPromise = api?.raffle?.tickets ? api.raffle.tickets() : safeFetchJson(buildUrl('/raffle/tickets'), { headers: authHeaders() });
+      const balancePromise = (!opts?.forceBalance && api?.banking?.balance) ? api.banking.balance() : safeFetchJson(buildUrl('/banking/balance'), { headers: authHeaders() });
 
-    (async () => {
-      try {
-        // Try to use client API; if functions missing, fall back to direct fetch
-        const investmentsPromise = api?.investments?.list ? api.investments.list() : safeFetchJson(buildUrl('/investments'), { headers: authHeaders() });
-        const withdrawalsPromise = api?.withdrawals?.list ? api.withdrawals.list() : safeFetchJson(buildUrl('/withdrawals'), { headers: authHeaders() });
-        const ticketsPromise = api?.raffle?.tickets ? api.raffle.tickets() : safeFetchJson(buildUrl('/raffle/tickets'), { headers: authHeaders() });
-        const balancePromise = api?.banking?.balance ? api.banking.balance() : safeFetchJson(buildUrl('/banking/balance'), { headers: authHeaders() });
+      const [invRes, wdRes, tkRes, balRes] = await Promise.allSettled([investmentsPromise, withdrawalsPromise, ticketsPromise, balancePromise]);
 
-        const [invRes, wdRes, tkRes, balRes] = await Promise.allSettled([investmentsPromise, withdrawalsPromise, ticketsPromise, balancePromise]);
+      const inv = invRes.status === 'fulfilled' ? invRes.value : [];
+      const wd = wdRes.status === 'fulfilled' ? wdRes.value : [];
+      const tk = tkRes.status === 'fulfilled' ? tkRes.value : [];
 
-        const inv = invRes.status === 'fulfilled' ? invRes.value : [];
-        const wd = wdRes.status === 'fulfilled' ? wdRes.value : [];
-        const tk = tkRes.status === 'fulfilled' ? tkRes.value : [];
+      setInvestments(Array.isArray(inv) ? inv : []);
+      setWithdrawals(Array.isArray(wd) ? wd : []);
+      setTickets(Array.isArray(tk) ? tk : []);
 
-        setInvestments(Array.isArray(inv) ? inv : []);
-        setWithdrawals(Array.isArray(wd) ? wd : []);
-        setTickets(Array.isArray(tk) ? tk : []);
-
-        if (balRes && balRes.status === 'fulfilled' && balRes.value) {
-          setBalance(balRes.value);
-        } else {
-          // fallback: compute from investments + referrals if available
-          const investmentsSum = (Array.isArray(inv) ? inv : []).reduce((acc, i) => acc + (Number(i.totalEarned) || 0), 0);
-          let commissionsSum = 0;
-          try {
-            const refs = await safeFetchJson(buildUrl('/referrals'), { headers: authHeaders() });
-            commissionsSum = Number(refs?.total) || 0;
-          } catch {}
-          setBalance({ investmentsSum, commissionsSum, totalBalance: investmentsSum + commissionsSum });
-        }
-      } catch (err) {
-        console.error('Dashboard aggregated fetch error', err);
-        setInvestments([]);
-        setWithdrawals([]);
-        setTickets([]);
-        setBalance({ investmentsSum: 0, commissionsSum: 0, totalBalance: 0 });
-      } finally {
-        setFetching(false);
+      if (balRes && balRes.status === 'fulfilled' && balRes.value) {
+        setBalance(balRes.value);
+      } else {
+        // fallback: compute from investments + referrals if available
+        const investmentsSum = (Array.isArray(inv) ? inv : []).reduce((acc, i) => acc + (Number(i.totalEarned) || 0), 0);
+        let commissionsSum = 0;
+        try {
+          const refs = await safeFetchJson(buildUrl('/referrals'), { headers: authHeaders() });
+          commissionsSum = Number(refs?.total) || 0;
+        } catch {}
+        setBalance({ investmentsSum, commissionsSum, totalBalance: investmentsSum + commissionsSum });
       }
-    })();
+    } catch (err) {
+      console.error('Dashboard aggregated fetch error', err);
+      setInvestments([]);
+      setWithdrawals([]);
+      setTickets([]);
+      setBalance({ investmentsSum: 0, commissionsSum: 0, totalBalance: 0 });
+    } finally {
+      setFetching(false);
+    }
   }, [user]);
 
+  // Load once on mount / when user changes
+  useEffect(() => {
+    if (!user) return;
+    fetchAggregatedData();
+  }, [user, fetchAggregatedData]);
+
+  // Poll for changes (balance/investments) so user sees admin updates quickly
+  useEffect(() => {
+    if (!user) return;
+    // clear previous interval if any
+    if (pollingRef.current) window.clearInterval(pollingRef.current);
+    pollingRef.current = window.setInterval(() => {
+      fetchAggregatedData();
+    }, POLL_INTERVAL_MS);
+    return () => {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [user, fetchAggregatedData]);
+
+  // Refetch on tab visibility (user focuses tab)
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible' && user) {
+        fetchAggregatedData({ forceBalance: true });
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [user, fetchAggregatedData]);
+
+  // Bank details load (user's saved banking)
   useEffect(() => {
     if (!user) return;
     setBankLoading(true);
-    // prefer api.banking.get() if available
     (api?.banking?.get ? api.banking.get() : safeFetchJson(buildUrl('/banking'), { headers: authHeaders() }))
       .then(b => setBanking(b || null))
       .catch(err => {
@@ -98,6 +132,8 @@ const Dashboard = () => {
     }
   };
 
+  const handleManualRefresh = () => fetchAggregatedData({ forceBalance: true });
+
   if (loading || fetching || bankLoading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading…</div>;
   if (!user) return null;
 
@@ -106,14 +142,17 @@ const Dashboard = () => {
       <nav className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="text-xl font-bold text-green-700">🐰 Rabbit Returns</Link>
-          {isAdmin && <Link to="/admin" className="text-sm text-green-700 hover:underline">Admin Dashboard</Link>}
-          <button onClick={() => navigate('/auth')} className="text-sm text-gray-600 hover:text-green-700 ml-2">Logout</button>
+          <div className="flex items-center gap-3">
+            {isAdmin && <Link to="/admin" className="text-sm text-green-700 hover:underline">Admin Dashboard</Link>}
+            <button onClick={() => navigate('/auth')} className="text-sm text-gray-600 hover:text-green-700 ml-2">Logout</button>
+            <button onClick={handleManualRefresh} className="ml-3 text-sm text-gray-600 hover:text-gray-800">Refresh</button>
+          </div>
         </div>
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
-        <p className="text-gray-600 mb-6">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
+        <p className="text-gray-600 mb-4">Welcome, <span className="font-semibold">{user?.profile?.fullName || user.email}</span></p>
 
         <div className="flex gap-3 mb-6">
           <Link to="/banking" className="px-4 py-2 bg-white border rounded shadow text-sm">Manage Payment Details</Link>
