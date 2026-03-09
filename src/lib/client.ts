@@ -86,11 +86,11 @@ export const api = {
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
       return data;
     },
-    create: async ({ packageName, amountRand, paymentReference }: { packageName: string; amountRand: number; paymentReference?: string }) => {
+    create: async (body: any) => {
       const res = await fetch(buildUrl('/investments'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packageName, amountRand, paymentReference }),
+        body: JSON.stringify(body),
       });
       const data = await parseJsonSafe(res);
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
@@ -99,36 +99,11 @@ export const api = {
     uploadProof: async (id: string, file: File, reference?: string) => {
       const formData = new FormData();
       formData.append('file', file);
-      if (reference) formData.append('paymentReference', reference);
+      if (reference) formData.append('reference', reference);
       const res = await fetch(buildUrl(`/investments/${id}/proof`), {
         method: 'POST',
         headers: { ...authHeaders() },
         body: formData,
-      });
-      const data = await parseJsonSafe(res);
-      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-      return data;
-    },
-    get: async (id: string) => {
-      const res = await fetch(buildUrl(`/investments/${id}`), { headers: authHeaders() });
-      const data = await parseJsonSafe(res);
-      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-      return data;
-    },
-  },
-
-  withdrawals: {
-    list: async () => {
-      const res = await fetch(buildUrl('/withdrawals'), { headers: authHeaders() });
-      const data = await parseJsonSafe(res);
-      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-      return data;
-    },
-    submit: async (body: any) => {
-      const res = await fetch(buildUrl('/withdrawals'), {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
       });
       const data = await parseJsonSafe(res);
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
@@ -212,8 +187,6 @@ export const api = {
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
       return data;
     },
-
-    // Keep backwards-compatible method names expected by AdminDashboard
     raffle: async () => {
       const res = await fetch(buildUrl('/admin/raffle'), { headers: authHeaders() });
       const data = await parseJsonSafe(res);
@@ -230,7 +203,6 @@ export const api = {
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
       return data;
     },
-
     users: async () => {
       const res = await fetch(buildUrl('/admin/users'), { headers: authHeaders() });
       const data = await parseJsonSafe(res);
@@ -240,6 +212,17 @@ export const api = {
     promoteUser: async (id: string) => {
       const res = await fetch(buildUrl(`/admin/users/${id}/promote`), {
         method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      });
+      const data = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    },
+
+    // NEW: run accrual
+    runAccrual: async () => {
+      const res = await fetch(buildUrl('/admin/run-accrual'), {
+        method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       });
       const data = await parseJsonSafe(res);
