@@ -142,9 +142,12 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
         return inv;
       });
 
-      // notify user
+      // notify user with package name + amount
       try {
-        await sendUserInvestmentApproved(investment.user.email, updated).catch(console.error);
+        const userEmail = investment.user?.email;
+        if (userEmail) {
+          await sendUserInvestmentApproved(userEmail, updated.packageName, updated.amountRand).catch(console.error);
+        }
       } catch (e) {
         console.error('sendUserInvestmentApproved error', e);
       }
@@ -160,7 +163,10 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
 
     if (status === 'rejected') {
       try {
-        await sendUserInvestmentRejected(investment.user.email, updated).catch(console.error);
+        const userEmail = investment.user?.email;
+        if (userEmail) {
+          await sendUserInvestmentRejected(userEmail, investment.packageName, adminNote).catch(console.error);
+        }
       } catch (e) {
         console.error('sendUserInvestmentRejected error', e);
       }
@@ -201,8 +207,12 @@ router.patch('/withdrawals/:id', requireAdmin, async (req: Request, res: Respons
       data: { status, adminNote },
     });
 
+    // fetch user email to notify
     try {
-      await sendUserWithdrawalUpdate(updated.userId, updated).catch(console.error);
+      const user = await prisma.user.findUnique({ where: { id: updated.userId } });
+      if (user && user.email) {
+        await sendUserWithdrawalUpdate(user.email, updated.amountRand, updated.status, adminNote).catch(console.error);
+      }
     } catch (e) {
       console.error('sendUserWithdrawalUpdate error', e);
     }
@@ -241,18 +251,19 @@ router.patch('/raffle/:id', requireAdmin, async (req: Request, res: Response) =>
       data: { status },
     });
 
-    if (status === 'active') {
-      try {
-        await sendUserRaffleApproved(updated.userId, updated).catch(console.error);
-      } catch (e) {
-        console.error('sendUserRaffleApproved error', e);
+    // fetch user email to notify
+    try {
+      const user = await prisma.user.findUnique({ where: { id: updated.userId } });
+      const userEmail = user?.email;
+      if (status === 'active' && userEmail) {
+        await sendUserRaffleApproved(userEmail).catch(console.error);
+      } else if (status === 'rejected' && userEmail) {
+        // optionally allow a reason in req.body.reason
+        const reason = (req.body as any).reason;
+        await sendUserRaffleRejected(userEmail, reason).catch(console.error);
       }
-    } else if (status === 'rejected') {
-      try {
-        await sendUserRaffleRejected(updated.userId, updated).catch(console.error);
-      } catch (e) {
-        console.error('sendUserRaffleRejected error', e);
-      }
+    } catch (e) {
+      console.error('sendUserRaffle notification error', e);
     }
 
     return res.json(updated);
