@@ -1,36 +1,27 @@
-import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { api } from "../lib/client";
-import { buildUrl } from "../lib/api-utils";
-import { useAuth } from "../lib/auth";
-
-type PackageDef = { name: string; amount: number; img?: string };
-
-const FALLBACK_PACKAGES: PackageDef[] = [
-  { name: "Hare Hustler", amount: 1000 },
-  { name: "Warren Winner", amount: 2000 },
-  { name: "Burrow Boss", amount: 5000 },
-  { name: "Colony King", amount: 10000 },
-];
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
+import { api } from '../lib/client';
+import { buildUrl } from '../lib/api-utils';
+import { PLATFORM_EFT } from '../lib/eft';
 
 export default function InvestPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
-  const [packages, setPackages] = useState<PackageDef[]>(FALLBACK_PACKAGES);
-  const [selectedPackage, setSelectedPackage] = useState<PackageDef>(FALLBACK_PACKAGES[0]);
-  const [bankReference, setBankReference] = useState("");
+  const [packages, setPackages] = useState<any[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState<any>({ name: '', amount: 0 });
   const [file, setFile] = useState<File | null>(null);
+  const [bankReference, setBankReference] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!loading && !user) navigate("/auth");
+    if (!loading && !user) navigate('/auth');
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    // Fetch packages from server
     async function loadPackages() {
       try {
         const res = await fetch(buildUrl('/packages'));
@@ -57,12 +48,11 @@ export default function InvestPage() {
         amountRand: selectedPackage.amount,
         paymentReference: bankReference || undefined,
       });
-      console.log("created investment", inv);
       if (!inv || !inv.id) throw new Error("Investment creation failed or returned invalid id");
 
       if (file) {
         try {
-          await api.investments.uploadProof(inv.id, file, bankReference);
+          await api.investments.uploadProof(inv.id, file);
         } catch (uploadErr: any) {
           console.error("Upload failed:", uploadErr);
           setError(`Proof upload failed: ${uploadErr?.message || uploadErr}`);
@@ -92,7 +82,18 @@ export default function InvestPage() {
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8">Invest</h1>
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">Invest</h1>
+
+        <img src="/6A9CDD49-9193-44DF-943A-4D4A774C2736.png" alt="Investment options" className="w-full max-w-xl mx-auto mb-6 rounded shadow" />
+
+        <div className="bg-white rounded-xl shadow p-4 mb-6">
+          <h3 className="font-semibold mb-2">Platform EFT (frontend copy)</h3>
+          <p className="text-sm"><strong>Beneficiary:</strong> {PLATFORM_EFT.beneficiaryName}</p>
+          <p className="text-sm"><strong>Bank:</strong> {PLATFORM_EFT.bank}</p>
+          <p className="text-sm"><strong>Account no:</strong> {PLATFORM_EFT.accountNumber}</p>
+          <p className="text-sm"><strong>Branch code:</strong> {PLATFORM_EFT.branchCode}</p>
+          <p className="text-sm"><strong>Reference:</strong> {PLATFORM_EFT.reference}</p>
+        </div>
 
         {success && (
           <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl">
@@ -109,50 +110,36 @@ export default function InvestPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Select Package</label>
             <select
-              value={selectedPackage.name}
+              value={selectedPackage?.name}
               onChange={(e) => {
-                const found = packages.find(p => p.name === e.target.value);
+                const found = packages.find((p: any) => p.name === e.target.value);
                 if (found) setSelectedPackage(found);
               }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2"
             >
-              {packages.map(pkg => (
-                <option key={pkg.name} value={pkg.name}>
-                  {pkg.name} — R{pkg.amount}
+              {packages.map((p: any) => (
+                <option key={p.name} value={p.name}>
+                  {p.name} — R{p.amount}
                 </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Reference (optional)</label>
-            <input
-              type="text"
-              value={bankReference}
-              onChange={e => setBankReference(e.target.value)}
-              placeholder="Your bank/EFT reference"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Bank reference (optional)</label>
+            <input value={bankReference} onChange={(e) => setBankReference(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Proof of Payment (file)</label>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={e => setFile(e.target.files?.[0] || null)}
-              className="w-full"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Upload proof (optional)</label>
+            <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)} />
           </div>
 
-          <div className="flex justify-between items-center gap-3">
-            <button
-              type="submit"
-              className="bg-green-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-700 transition w-full disabled:opacity-50"
-              disabled={submitting}
-            >
-              {submitting ? "Submitting..." : `Invest R${selectedPackage.amount}`}
+          <div className="flex justify-between items-center">
+            <button type="submit" disabled={submitting} className="bg-green-600 text-white px-4 py-2 rounded-lg">
+              {submitting ? 'Submitting…' : `Invest R${selectedPackage?.amount}`}
             </button>
+            <Link to="/dashboard" className="text-sm text-green-700 hover:underline">Back</Link>
           </div>
         </form>
       </div>
