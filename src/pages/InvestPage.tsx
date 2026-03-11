@@ -84,7 +84,11 @@ export default function InvestPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-4">Invest</h1>
 
-        <img src="/6A9CDD49-9193-44DF-943A-4D4A774C2736.png" alt="Investment options" className="w-full max-w-xl mx-auto mb-6 rounded shadow" />
+        <img
+          src="/images/6A9CDD49-9193-44DF-943A-4D4A774C2736.png"
+          alt="Investment options"
+          className="w-full max-w-xl mx-auto mb-6 rounded shadow"
+        />
 
         <div className="bg-white rounded-xl shadow p-4 mb-6">
           <h3 className="font-semibold mb-2">Platform EFT (frontend copy)</h3>
