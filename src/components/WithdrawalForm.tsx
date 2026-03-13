@@ -31,7 +31,7 @@ export default function WithdrawalForm({
 
   const [otherDetails, setOtherDetails] = useState("");
 
-  const MIN_WITHDRAWAL = 100;
+  const MIN_WITHDRAWAL = 60;
   const amountNum = parseFloat(amount) || 0;
   const isValidAmount =
     amountNum >= MIN_WITHDRAWAL && amountNum <= availableBalance;
