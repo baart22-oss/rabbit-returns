@@ -6,7 +6,8 @@ type Props = {
   label?: string;     // accessible label
 };
 
-const DEFAULT_URL = 'https://wa.me/+27644963907mode=gi_t ;
+
+const DEFAULT_URL = 'https://chat.whatsapp.com/JqNgYs4N4fTEIyGiO9Tc6y?mode=gi_t';
 
 export default function WhatsAppButton({ url = DEFAULT_URL, label = 'Contact support on WhatsApp' }: Props) {
   return (
