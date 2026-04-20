@@ -11,10 +11,11 @@ import {
   sendAdminNewProof,
 } from '../services/email';
 import { runAccrual, AccrualResult } from '../services/accrual';
+import { PACKAGE_META } from './packages';
 
 const router = Router();
 
-const MATURITY_DAYS = 180;
+const DEFAULT_MATURITY_DAYS = 180;
 const REFERRAL_LEVELS = [
   { pct: 0.05, level: 1 },
   { pct: 0.03, level: 2 },
@@ -88,7 +89,9 @@ router.patch('/investments/:id', requireAdmin, async (req: Request, res: Respons
 
     if (status === 'active') {
       const startedAt = now;
-      const maturesAt = new Date(now.getTime() + MATURITY_DAYS * 24 * 60 * 60 * 1000);
+      const meta = PACKAGE_META[investment.packageName];
+      const durationDays = meta ? meta.durationDays : DEFAULT_MATURITY_DAYS;
+      const maturesAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
       // create referral commissions inside transaction
       const commissionCreates: Prisma.PrismaPromise<any>[] = [];
