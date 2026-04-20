@@ -1,6 +1,7 @@
 import prisma from '../prisma/client';
+import { PACKAGE_META } from '../routes/packages';
 
-const DAILY_RATE = 0.02; // 2% per day
+const DEFAULT_DAILY_RATE = 0.02; // 2% per day (fallback for packages without meta)
 const TWENTY_THREE_HOURS_MS = 23 * 60 * 60 * 1000;
 
 export type AccrualResult = {
@@ -53,7 +54,9 @@ export async function runAccrual(opts?: { force?: boolean }): Promise<AccrualRes
     }
 
     // perform accrual
-    const earned = inv.amountRand * DAILY_RATE;
+    const meta = PACKAGE_META[inv.packageName];
+    const dailyRate = meta ? meta.dailyRate : DEFAULT_DAILY_RATE;
+    const earned = inv.amountRand * dailyRate;
     await prisma.investment.update({
       where: { id: inv.id },
       data: {

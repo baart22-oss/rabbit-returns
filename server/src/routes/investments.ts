@@ -6,7 +6,7 @@ import prisma from '../prisma/client';
 import { requireAuth } from '../middleware/auth';
 import { sendAdminNewProof } from '../services/email';
 import { v4 as uuidv4 } from 'uuid';
-import { PACKAGES } from './packages'; // <- import central packages
+import { PACKAGES, PACKAGE_META } from './packages'; // <- import central packages
 
 const router = Router();
 
@@ -49,11 +49,11 @@ router.get('/', requireAuth, async (req: Request & { user?: any }, res: Response
 
 /**
  * POST /api/investments
- * Create a new investment request (status: pending)
+ * Create a new investment request (status: pending) or auto-activate from balance.
  */
 router.post('/', requireAuth, async (req: Request & { user?: any }, res: Response) => {
   try {
-    const { packageName, amountRand, paymentReference } = req.body;
+    const { packageName, amountRand, paymentReference, paymentMethod } = req.body;
 
     if (!packageName || !amountRand) {
       return res.status(400).json({ error: 'packageName and amountRand are required' });
@@ -68,6 +68,79 @@ router.post('/', requireAuth, async (req: Request & { user?: any }, res: Respons
       return res.status(400).json({ error: 'Invalid amountRand' });
     }
 
+    if (paymentMethod === 'balance') {
+      const userId = req.user!.id;
+
+      // Compute available balance (same logic as /api/banking/balance)
+      const investmentsSumResult = await prisma.investment.aggregate({
+        where: { userId, status: 'active' },
+        _sum: { totalEarned: true },
+      });
+      const investmentsSum = Number(investmentsSumResult._sum.totalEarned ?? 0);
+
+      const commissionsSumResult = await prisma.referralCommission.aggregate({
+        where: { earnerId: userId },
+        _sum: { amountRand: true },
+      });
+      const commissionsSum = Number(commissionsSumResult._sum.amountRand ?? 0);
+
+      const paidWithdrawalsRes = await prisma.withdrawal.aggregate({
+        where: { userId, status: 'paid' },
+        _sum: { amountRand: true },
+      });
+      const totalWithdrawnPaid = Number(paidWithdrawalsRes._sum.amountRand ?? 0);
+
+      const totalBalance = investmentsSum + commissionsSum - totalWithdrawnPaid;
+
+      if (totalBalance < amount) {
+        return res.status(400).json({
+          error: `Insufficient balance. Available: R${totalBalance.toFixed(2)}, required: R${amount}`,
+        });
+      }
+
+      const now = new Date();
+      const meta = PACKAGE_META[packageName];
+      const durationDays = meta ? meta.durationDays : 180;
+      const maturesAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+      // Fetch banking details to populate the deduction withdrawal record
+      const bankingDetails = await prisma.bankingDetails.findUnique({ where: { userId } });
+
+      const investment = await prisma.$transaction(async (tx) => {
+        const inv = await tx.investment.create({
+          data: {
+            userId,
+            packageName,
+            amountRand: amount,
+            status: 'active',
+            startedAt: now,
+            maturesAt,
+            paymentReference: 'balance',
+          },
+        });
+
+        // Record balance deduction as a paid withdrawal
+        await tx.withdrawal.create({
+          data: {
+            userId,
+            amountRand: amount,
+            status: 'paid',
+            bankName: bankingDetails?.bankName ?? 'Balance Payment',
+            accountHolder: bankingDetails?.accountHolder ?? 'Balance Payment',
+            accountNumber: bankingDetails?.accountNumber ?? '000000',
+            branchCode: bankingDetails?.branchCode ?? '000000',
+            accountType: bankingDetails?.accountType ?? 'CHEQUE',
+            adminNote: `Balance payment for ${packageName} investment`,
+          },
+        });
+
+        return inv;
+      });
+
+      return res.status(201).json(investment);
+    }
+
+    // Default: POP flow (status: pending)
     const investment = await prisma.investment.create({
       data: {
         userId: req.user!.id,

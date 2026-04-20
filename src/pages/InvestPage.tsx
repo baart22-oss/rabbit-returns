@@ -16,6 +16,8 @@ export default function InvestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'pop' | 'balance'>('pop');
+  const [userBalance, setUserBalance] = useState<number | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate('/auth');
@@ -38,6 +40,13 @@ export default function InvestPage() {
     loadPackages();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    api.banking.balance()
+      .then((data) => setUserBalance(data.totalBalance))
+      .catch(() => setUserBalance(null));
+  }, [user]);
+
   const handleInvest = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
@@ -46,11 +55,12 @@ export default function InvestPage() {
       const inv = await api.investments.create({
         packageName: selectedPackage.name,
         amountRand: selectedPackage.amount,
-        paymentReference: bankReference || undefined,
+        paymentReference: paymentMethod === 'pop' ? (bankReference || undefined) : undefined,
+        paymentMethod,
       });
       if (!inv || !inv.id) throw new Error("Investment creation failed or returned invalid id");
 
-      if (file) {
+      if (paymentMethod === 'pop' && file) {
         try {
           await api.investments.uploadProof(inv.id, file);
         } catch (uploadErr: any) {
@@ -90,18 +100,11 @@ export default function InvestPage() {
           className="w-full max-w-xl mx-auto mb-6 rounded shadow"
         />
 
-        <div className="bg-white rounded-xl shadow p-4 mb-6">
-          <h3 className="font-semibold mb-2">Platform EFT (frontend copy)</h3>
-          <p className="text-sm"><strong>Beneficiary:</strong> {PLATFORM_EFT.beneficiaryName}</p>
-          <p className="text-sm"><strong>Bank:</strong> {PLATFORM_EFT.bank}</p>
-          <p className="text-sm"><strong>Account no:</strong> {PLATFORM_EFT.accountNumber}</p>
-          <p className="text-sm"><strong>Branch code:</strong> {PLATFORM_EFT.branchCode}</p>
-          <p className="text-sm"><strong>Reference:</strong> {PLATFORM_EFT.reference}</p>
-        </div>
-
         {success && (
           <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl">
-            ✅ Investment submitted! Awaiting admin approval.
+            {paymentMethod === 'balance'
+              ? '✅ Investment activated! Earning daily returns.'
+              : '✅ Investment submitted! Awaiting admin approval.'}
           </div>
         )}
         {error && (
@@ -130,14 +133,62 @@ export default function InvestPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Bank reference (optional)</label>
-            <input value={bankReference} onChange={(e) => setBankReference(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="pop"
+                  checked={paymentMethod === 'pop'}
+                  onChange={() => setPaymentMethod('pop')}
+                />
+                <span className="text-sm">Upload Proof of Payment (EFT)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="balance"
+                  checked={paymentMethod === 'balance'}
+                  onChange={() => setPaymentMethod('balance')}
+                />
+                <span className="text-sm">Pay from Available Balance</span>
+              </label>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Upload proof (optional)</label>
-            <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)} />
-          </div>
+          {paymentMethod === 'balance' ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-700">
+                Available balance: <strong>R{userBalance !== null ? userBalance.toFixed(2) : '…'}</strong>
+              </p>
+              <p className="text-sm text-blue-600 mt-1">
+                R{selectedPackage?.amount} will be deducted from your balance.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-white rounded-xl border p-4">
+                <h3 className="font-semibold mb-2 text-sm">Platform EFT Details</h3>
+                <p className="text-sm"><strong>Beneficiary:</strong> {PLATFORM_EFT.beneficiaryName}</p>
+                <p className="text-sm"><strong>Bank:</strong> {PLATFORM_EFT.bank}</p>
+                <p className="text-sm"><strong>Account no:</strong> {PLATFORM_EFT.accountNumber}</p>
+                <p className="text-sm"><strong>Branch code:</strong> {PLATFORM_EFT.branchCode}</p>
+                <p className="text-sm"><strong>Reference:</strong> {PLATFORM_EFT.reference}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bank reference (optional)</label>
+                <input value={bankReference} onChange={(e) => setBankReference(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Upload proof (optional)</label>
+                <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)} />
+              </div>
+            </>
+          )}
 
           <div className="flex justify-between items-center">
             <button type="submit" disabled={submitting} className="bg-green-600 text-white px-4 py-2 rounded-lg">
