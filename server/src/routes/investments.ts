@@ -10,6 +10,33 @@ import { PACKAGES, PACKAGE_META } from './packages'; // <- import central packag
 
 const router = Router();
 
+const BALANCE_PAYMENT_PLACEHOLDER = 'Balance Payment';
+const PLACEHOLDER_ACCOUNT_NUMBER = '000000';
+const PLACEHOLDER_BRANCH_CODE = '000000';
+
+/** Compute a user's available balance (mirrors /api/banking/balance logic). */
+async function getUserBalance(userId: string): Promise<number> {
+  const investmentsSumResult = await prisma.investment.aggregate({
+    where: { userId, status: 'active' },
+    _sum: { totalEarned: true },
+  });
+  const investmentsSum = Number(investmentsSumResult._sum.totalEarned ?? 0);
+
+  const commissionsSumResult = await prisma.referralCommission.aggregate({
+    where: { earnerId: userId },
+    _sum: { amountRand: true },
+  });
+  const commissionsSum = Number(commissionsSumResult._sum.amountRand ?? 0);
+
+  const paidWithdrawalsRes = await prisma.withdrawal.aggregate({
+    where: { userId, status: 'paid' },
+    _sum: { amountRand: true },
+  });
+  const totalWithdrawnPaid = Number(paidWithdrawalsRes._sum.amountRand ?? 0);
+
+  return investmentsSum + commissionsSum - totalWithdrawnPaid;
+}
+
 // Ensure uploads dir exists (same as app.ts)
 const uploadsPath = path.join(process.cwd(), 'uploads');
 try {
@@ -71,26 +98,7 @@ router.post('/', requireAuth, async (req: Request & { user?: any }, res: Respons
     if (paymentMethod === 'balance') {
       const userId = req.user!.id;
 
-      // Compute available balance (same logic as /api/banking/balance)
-      const investmentsSumResult = await prisma.investment.aggregate({
-        where: { userId, status: 'active' },
-        _sum: { totalEarned: true },
-      });
-      const investmentsSum = Number(investmentsSumResult._sum.totalEarned ?? 0);
-
-      const commissionsSumResult = await prisma.referralCommission.aggregate({
-        where: { earnerId: userId },
-        _sum: { amountRand: true },
-      });
-      const commissionsSum = Number(commissionsSumResult._sum.amountRand ?? 0);
-
-      const paidWithdrawalsRes = await prisma.withdrawal.aggregate({
-        where: { userId, status: 'paid' },
-        _sum: { amountRand: true },
-      });
-      const totalWithdrawnPaid = Number(paidWithdrawalsRes._sum.amountRand ?? 0);
-
-      const totalBalance = investmentsSum + commissionsSum - totalWithdrawnPaid;
+      const totalBalance = await getUserBalance(userId);
 
       if (totalBalance < amount) {
         return res.status(400).json({
@@ -125,10 +133,10 @@ router.post('/', requireAuth, async (req: Request & { user?: any }, res: Respons
             userId,
             amountRand: amount,
             status: 'paid',
-            bankName: bankingDetails?.bankName ?? 'Balance Payment',
-            accountHolder: bankingDetails?.accountHolder ?? 'Balance Payment',
-            accountNumber: bankingDetails?.accountNumber ?? '000000',
-            branchCode: bankingDetails?.branchCode ?? '000000',
+            bankName: bankingDetails?.bankName ?? BALANCE_PAYMENT_PLACEHOLDER,
+            accountHolder: bankingDetails?.accountHolder ?? BALANCE_PAYMENT_PLACEHOLDER,
+            accountNumber: bankingDetails?.accountNumber ?? PLACEHOLDER_ACCOUNT_NUMBER,
+            branchCode: bankingDetails?.branchCode ?? PLACEHOLDER_BRANCH_CODE,
             accountType: bankingDetails?.accountType ?? 'CHEQUE',
             adminNote: `Balance payment for ${packageName} investment`,
           },
